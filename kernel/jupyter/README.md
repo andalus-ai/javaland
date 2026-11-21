@@ -56,153 +56,39 @@ kernel class back into a registry plus documentation dump.
 
 ## Build & Install
 
+Run these commands from this directory (`javaland/kernel/jupyter`):
+
 ```bash
-# 1. Inspect the local rebuild environment
+# Inspect the local environment
 ./rebuild_kernel.sh doctor
 
-# 2. Fastest fallback: assemble a fresh standalone jar without Maven or Gradle
-./rebuild_kernel.sh local-fat
+# Build and test the kernel module
+./rebuild_kernel.sh build
 
-# 3. Seed a writable local Maven cache from ~/.m2 when needed
-./rebuild_kernel.sh seed-home-m2
+# Build the standalone Jupyter kernel jar
+./rebuild_kernel.sh fat
 
-# 4. Preferred when Gradle is healthy: build the standalone fat jar with Gradle
-./rebuild_kernel.sh gradle-fat
-
-# 5. Fallback: use the older Maven shaded build when Gradle is unavailable
-./rebuild_kernel.sh maven
-
-# 6. If Maven still fails offline, diagnose exactly what is missing
-./rebuild_kernel.sh maven-diagnose
-
-# 7. Inspect the install plan
-cd tafkir/integration/jupyter/jupyter
+# Preview installation
 python3 install.py --dry-run
 
-# 8. Verify the launcher path before opening Jupyter
+# Check Jupyter and local kernelspec state
 python3 selftest.py
-
-# 9. Inspect what the installed kernelspec currently points at
 python3 doctor.py
 
-# 10. If doctor reports drift, preview a safe active-kernel refresh
-python3 sync_active_install.py --dry-run
-
-# 11. Install the kernel
+# Install for the current user
 python3 install.py --user
 
-# 12. Verify the kernelspec
+# Verify discovery
 jupyter kernelspec list
 ```
 
-`rebuild_kernel.sh` keeps writable local caches under:
+Gradle is the canonical build. The legacy Maven shaded build and manual
+classpath assembler have been retired during migration. The standalone jar is
+written to `build/libs/javaland-kernel.jar`.
 
-- `.cache/m2`
-- `.cache/gradle`
-
-That avoids relying on global cache directories when the local environment or
-sandbox makes those unwritable.
-
-The Gradle path now has a dedicated `fatJar` task that writes a standalone
-`build/libs/tafkir-kernel.jar`, which is also one of the installer's preferred
-jar candidates.
-
-For environments where Gradle startup or Maven resolution is the real blocker,
-`build_local_standalone.sh` and `./rebuild_kernel.sh local-fat` can assemble a
-fresh `build/libs/tafkir-kernel.jar` directly from local source plus jars
-already present in your Maven repository.
-
-By default, the Maven rebuild path prefers offline mode after seeding the local
-cache. Override that with `TAFKIR_JUPYTER_MAVEN_OFFLINE=false` if you explicitly
-want Maven to try network resolution.
-
-If the focused seed still misses parent POMs or plugin BOMs in your local
-offline cache, retry with:
-
-```bash
-TAFKIR_JUPYTER_SEED_MODE=full ./rebuild_kernel.sh seed-home-m2
-TAFKIR_JUPYTER_SEED_M2=true TAFKIR_JUPYTER_SEED_MODE=full ./rebuild_kernel.sh maven
-```
-
-If you want the helper to tell you whether a missing artifact exists in your
-home Maven repository versus only being absent from the local seeded cache, run:
-
-```bash
-./rebuild_kernel.sh maven-diagnose
-```
-
-The installer resolves the runnable kernel jar from the standalone kernel
-module. It currently checks these paths in order:
-
-- `target/tafkir-kernel.jar`
-- `build/libs/tafkir-kernel.jar`
-- `target/original-tafkir-kernel.jar`
-- other `build/libs/*kernel*.jar` candidates
-
-For safety, the installer and self-test reject stale jars by default when the
-source tree is newer than the built artifact. Rebuild first if that happens.
-Use `--allow-stale-jar` only when you intentionally want to test an older jar.
-
-If you built the jar somewhere else, override it explicitly:
-
-```bash
-python3 install.py --user --jar /path/to/tafkir-kernel.jar
-```
-
-You can run the same override through the startup self-test:
-
-```bash
-python3 selftest.py --jar /path/to/tafkir-kernel.jar
-```
-
-To inspect what Jupyter will actually launch, use:
-
-```bash
-python3 doctor.py
-```
-
-That helper checks:
-
-- whether the `tafkir` kernelspec is installed
-- which `kernel.json` Jupyter will resolve
-- which jar the installed `argv` points at
-- whether that jar is stale relative to current source
-- whether the installed kernelspec is still drifting from the freshest local build
-
-`install.py --user` now resolves the install base from `jupyter --data-dir`
-instead of assuming a Linux-style `~/.local/share/jupyter`. That matters on
-macOS, where the active user kernels typically live under `~/Library/Jupyter`.
-
-If `doctor.py` finds an older copied jar or a mismatched `kernel.json`, you can
-repair the active kernelspec in place with:
-
-```bash
-python3 sync_active_install.py --dry-run
-python3 sync_active_install.py
-```
-
-That helper:
-
-- targets the kernelspec Jupyter is actually resolving
-- refreshes the copied `tafkir-kernel.jar`
-- rewrites `kernel.json` to point at the copied install-directory jar
-- makes timestamped backups before replacing existing files
-
-When `selftest.py` sees repeated random-port ZMQ bind failures, it now runs a
-small localhost TCP bind probe and reports a more specific verdict:
-
-- `environment-localhost-bind-restriction`
-  - even plain Python localhost binds failed
-  - this points to the current environment or sandbox rather than a normal port collision
-- `jeroMQ-or-kernel-bind-boundary`
-  - plain Python binds worked, but JJava/JeroMQ startup still failed
-  - this points more directly at the Java-side kernel networking stack
-
-That makes the self-test much more truthful than the earlier generic
-`Address already in use` loop.
-
-The older `../jupyter-kernel/install.sh` helper is still available, but it now
-delegates to this installer.
+The installer expects a built jar; it does not silently build or download
+artifacts. Use JBang-based bootstrap and dependency workflows as the next
+distribution milestone.
 
 ## Usage
 

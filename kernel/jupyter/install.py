@@ -43,7 +43,6 @@ def resolve_kernel_jar(base_dir: Path, explicit: str | None) -> Path:
     candidates.extend(
         [
             base_dir / "build" / "libs" / JAR_NAME,
-            base_dir / "build" / "libs" / JAR_NAME,
             base_dir / "build" / "libs" / "original-javaland-kernel.jar",
         ]
     )
@@ -61,7 +60,6 @@ def resolve_kernel_jar(base_dir: Path, explicit: str | None) -> Path:
         "JavaLand kernel jar not found.\n"
         f"Searched:\n{searched}\n"
         "Build one first with either:\n"
-        "  - mvn -f javaland/kernel/jupyter/pom.xml -DskipTests package\n"
         "  - ./gradlew :kernel:jupyter:build"
     )
 

@@ -61,7 +61,7 @@ def build_connection_payload() -> dict:
         "key": secrets.token_hex(16),
         "transport": "tcp",
         "signature_scheme": "hmac-sha256",
-        "kernel_name": "tafkir-selftest",
+        "kernel_name": "javaland-selftest",
     }
 
 
@@ -170,7 +170,7 @@ def main() -> int:
     command = build_kernel_command(base_dir, jar_path, args.java)
     bind_failures: list[dict[str, object]] = []
 
-    with tempfile.TemporaryDirectory(prefix="tafkir-jupyter-selftest-") as temp_dir:
+    with tempfile.TemporaryDirectory(prefix="javaland-jupyter-selftest-") as temp_dir:
         temp_path = Path(temp_dir)
         for attempt in range(1, args.retries + 1):
             connection_payload = build_connection_payload()

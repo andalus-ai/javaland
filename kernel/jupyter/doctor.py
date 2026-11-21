@@ -16,7 +16,7 @@ from install import latest_source_mtime, resolve_kernel_jar
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Inspect the installed JavaLand Jupyter kernelspec")
-    parser.add_argument("--kernel-name", default="tafkir", help="Kernelspec name to inspect.")
+    parser.add_argument("--kernel-name", default="javaland", help="Kernelspec name to inspect.")
     parser.add_argument("--prefix", help="Inspect a specific Jupyter prefix instead of auto-discovery.")
     parser.add_argument("--verbose", action="store_true", help="Print the resolved kernelspec JSON.")
     return parser.parse_args()
