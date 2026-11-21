@@ -43,7 +43,8 @@ def resolve_kernel_jar(base_dir: Path, explicit: str | None) -> Path:
     candidates.extend(
         [
             base_dir / "build" / "libs" / JAR_NAME,
-            base_dir / "build" / "libs" / "original-javaland-kernel.jar",
+            base_dir / "target" / JAR_NAME,
+            base_dir / "target" / "original-javaland-kernel.jar",
         ]
     )
     build_libs = base_dir / "build" / "libs"
@@ -60,6 +61,7 @@ def resolve_kernel_jar(base_dir: Path, explicit: str | None) -> Path:
         "JavaLand kernel jar not found.\n"
         f"Searched:\n{searched}\n"
         "Build one first with either:\n"
+        "  - mvn -f kernel/jupyter/pom.xml -DskipTests package\n"
         "  - ./gradlew :kernel:jupyter:build"
     )
 
@@ -151,7 +153,7 @@ def validate_kernel_jar_freshness(base_dir: Path, jar_path: Path, allow_stale: b
         f"  jar:    {jar_path} ({jar_ts})\n"
         f"  source: {latest_path} ({src_ts})\n"
         "Rebuild before install/self-test with either:\n"
-        "  - mvn -f javaland/kernel/jupyter/pom.xml -DskipTests package\n"
+        "  - mvn -f kernel/jupyter/pom.xml -DskipTests package\n"
         "  - ./gradlew :kernel:jupyter:build\n"
         "If you intentionally want the old jar, rerun with --allow-stale-jar."
     )

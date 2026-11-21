@@ -56,70 +56,99 @@ kernel class back into a registry plus documentation dump.
 
 ## Build & Install
 
-Run these commands from this directory (`javaland/kernel/jupyter`):
-
 ```bash
-# Inspect the local environment
+# 1. Inspect the local rebuild environment
 ./rebuild_kernel.sh doctor
 
-# Build and test the kernel module
-./rebuild_kernel.sh build
+# 2. Fastest fallback: assemble a fresh standalone jar without Maven or Gradle
+./rebuild_kernel.sh local-fat
 
-# Build the standalone Jupyter kernel jar
-./rebuild_kernel.sh fat
+# 3. Seed a writable local Maven cache from ~/.m2 when needed
+./rebuild_kernel.sh seed-home-m2
 
-# Preview installation
+# 4. Preferred when Gradle is healthy: build the standalone fat jar with Gradle
+./rebuild_kernel.sh gradle-fat
+
+# 5. Fallback: use the older Maven shaded build when Gradle is unavailable
+./rebuild_kernel.sh maven
+
+# 6. If Maven still fails offline, diagnose exactly what is missing
+./rebuild_kernel.sh maven-diagnose
+
+# 7. Inspect the install plan
+cd javaland/kernel/jupyter
 python3 install.py --dry-run
 
-# Check Jupyter and local kernelspec state
+# 8. Verify the launcher path before opening Jupyter
 python3 selftest.py
+
+# 9. Inspect what the installed kernelspec currently points at
 python3 doctor.py
 
-# Install for the current user
+# 10. If doctor reports drift, preview a safe active-kernel refresh
+python3 sync_active_install.py --dry-run
+
+# 11. Install the kernel
 python3 install.py --user
 
-# Verify discovery
+# 12. Verify the kernelspec
 jupyter kernelspec list
 ```
 
-Gradle is the canonical build. The legacy Maven shaded build and manual
-classpath assembler have been retired during migration. The standalone jar is
-written to `build/libs/javaland-kernel.jar`.
+`rebuild_kernel.sh` keeps writable local caches under:
 
-The installer expects a built jar; it does not silently build or download
-artifacts. Use JBang-based bootstrap and dependency workflows as the next
-distribution milestone.
+- `.cache/m2`
+- `.cache/gradle`
 
-## Usage
+That avoids relying on global cache directories when the local environment or
+sandbox makes those unwritable.
 
-Open any notebook and select **JavaLand (Java 25)** as the kernel.
+The Gradle path now has a dedicated `fatJar` task that writes a standalone
+`build/libs/javaland-kernel.jar`, which is also one of the installer's preferred
+jar candidates.
 
-Cells run as plain Java snippets through JShell, so imports and variables work
-the way they do in a JShell session:
+For environments where Gradle startup or Maven resolution is the real blocker,
+`build_local_standalone.sh` and `./rebuild_kernel.sh local-fat` can assemble a
+fresh `build/libs/javaland-kernel.jar` directly from local source plus jars
+already present in your Maven repository.
 
 ```java
 import tech.kayys.javaland.ml.nn.Linear;
 
-var layer = new Linear(8, 4);
-System.out.println(layer);
+If the focused seed still misses parent POMs or plugin BOMs in your local
+offline cache, retry with:
+
+```bash
+JAVALAND_JUPYTER_SEED_MODE=full ./rebuild_kernel.sh seed-home-m2
+JAVALAND_JUPYTER_SEED_M2=true JAVALAND_JUPYTER_SEED_MODE=full ./rebuild_kernel.sh maven
 ```
 
 The kernel now preloads a small default Javaland notebook import set, so a fresh
 session can use these symbols without a manual import cell:
 
-- `GradTensor`
-- `Linear`
-- `ReLU`
-- `Sequential`
-
-That means first cells like these work immediately:
-
-```java
-var t = GradTensor.ones(2, 2);
-new Sequential(new Linear(2, 3), new ReLU()).size();
+```bash
+./rebuild_kernel.sh maven-diagnose
 ```
 
-The kernel also preloads a few tiny startup helpers for the first notebook cell:
+The installer resolves the runnable kernel jar from the standalone kernel
+module. It currently checks these paths in order:
+
+- `target/javaland-kernel.jar`
+- `build/libs/javaland-kernel.jar`
+- `target/original-javaland-kernel.jar`
+- other `build/libs/*kernel*.jar` candidates
+
+For safety, the installer and self-test reject stale jars by default when the
+source tree is newer than the built artifact. Rebuild first if that happens.
+Use `--allow-stale-jar` only when you intentionally want to test an older jar.
+
+If you built the jar somewhere else, override it explicitly:
+
+```bash
+python3 install.py --user --jar /path/to/javaland-kernel.jar
+```
+
+You can run the same override through the startup self-test:
 
 - `javalandHelp()`
 - `javalandTensorDemo()`
@@ -131,7 +160,61 @@ The kernel also preloads a few tiny startup helpers for the first notebook cell:
 - `javalandModelDemo()`
 - `javalandModelSummary()`
 
-Example:
+To inspect what Jupyter will actually launch, use:
+
+```bash
+python3 doctor.py
+```
+
+That helper checks:
+
+- whether the `javaland` kernelspec is installed
+- which `kernel.json` Jupyter will resolve
+- which jar the installed `argv` points at
+- whether that jar is stale relative to current source
+- whether the installed kernelspec is still drifting from the freshest local build
+
+`install.py --user` now resolves the install base from `jupyter --data-dir`
+instead of assuming a Linux-style `~/.local/share/jupyter`. That matters on
+macOS, where the active user kernels typically live under `~/Library/Jupyter`.
+
+If `doctor.py` finds an older copied jar or a mismatched `kernel.json`, you can
+repair the active kernelspec in place with:
+
+```bash
+python3 sync_active_install.py --dry-run
+python3 sync_active_install.py
+```
+
+That helper:
+
+- targets the kernelspec Jupyter is actually resolving
+- refreshes the copied `javaland-kernel.jar`
+- rewrites `kernel.json` to point at the copied install-directory jar
+- makes timestamped backups before replacing existing files
+
+When `selftest.py` sees repeated random-port ZMQ bind failures, it now runs a
+small localhost TCP bind probe and reports a more specific verdict:
+
+- `environment-localhost-bind-restriction`
+  - even plain Python localhost binds failed
+  - this points to the current environment or sandbox rather than a normal port collision
+- `jeroMQ-or-kernel-bind-boundary`
+  - plain Python binds worked, but JJava/JeroMQ startup still failed
+  - this points more directly at the Java-side kernel networking stack
+
+That makes the self-test much more truthful than the earlier generic
+`Address already in use` loop.
+
+The older `../jupyter-kernel/install.sh` helper is still available, but it now
+delegates to this installer.
+
+## Usage
+
+Open any notebook and select **JavaLand (Java 25)** as the kernel.
+
+Cells run as plain Java snippets through JShell, so imports and variables work
+the way they do in a JShell session:
 
 ```java
 javalandHelp();
@@ -144,6 +227,8 @@ javalandAudioDemo();
 javalandModelDemo().size();
 javalandModelSummary();
 ```
+
+A fresh session starts with standard Java utility, filesystem, time, and math imports. ML framework APIs are not loaded by default; add the libraries and imports required by a notebook explicitly.
 
 The kernel also supports a small starter magic layer:
 
@@ -463,7 +548,7 @@ If an artifact is missing:
 
 - `%maven --explain ...` shows the exact local paths the kernel searched
 - `%maven --allow-remote ...` prints the recommended `mvn dependency:get` command and the retry command, but does not perform network resolution inside the kernel
-- `%maven --allow-remote --fetch ...` is the explicit remote-fetch path, but it is disabled by default unless `TAFKIR_JUPYTER_ENABLE_REMOTE_MAVEN=true` is set in the notebook environment
+- `%maven --allow-remote --fetch ...` is the explicit remote-fetch path, but it is disabled by default unless `JAVALAND_JUPYTER_ENABLE_REMOTE_MAVEN=true` is set in the notebook environment
 
 The notebook renderer now also recognizes simple metrics/data-exploration shapes:
 
@@ -476,6 +561,26 @@ The notebook renderer now also recognizes simple metrics/data-exploration shapes
 - `NotebookLineChart` as an inline SVG line chart for notebook metrics like loss curves
 - `BufferedImage` as an inline PNG preview
 - `NotebookAudioClip` as an inline WAV audio preview
+
+## Java execution session API
+
+The kernel delegates persistent JShell ownership to
+`tech.kayys.javaland.runtime.JavaExecutionSession`. This API has no Jupyter
+protocol types and can be reused by other JavaLand adapters:
+
+```java
+try (var session = JavaExecutionSession.create()) {
+    session.eval("var answer = 40;");
+    Object result = session.eval("answer + 2");
+    System.out.println(result);
+}
+```
+
+The session owns evaluation, compiler/startup configuration, classpath updates,
+interrupt, and shutdown. Jupyter-specific completion and message handling stay
+in the kernel adapter. The default session uses standard Java imports; custom
+startup source and compiler options are available through the overloaded
+`create(startupScript, compilerOptions...)` factory.
 
 ## JVM options
 

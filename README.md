@@ -2,18 +2,18 @@
 
 JavaLand is the Java-first interactive developer environment for the Andalus ecosystem.
 
-It provides a Jupyter-compatible Java kernel built around the modern JDK JShell APIs, with JBang-oriented installation and dependency workflows. JavaLand is designed to work with ordinary Java libraries independently; integrations for Aljabr, AQLI, and Tafkir are optional ecosystem extensions.
+It provides a Jupyter-compatible Java kernel built around the modern JDK JShell APIs. JavaLand works with ordinary Java libraries independently; integrations for Aljabr, AQLI, and Tafkir are optional extensions.
 
 ## Goals
 
-- A persistent JVM-backed JShell session for notebook cells.
+- Persistent JVM-backed JShell sessions for notebook cells.
 - Jupyter messaging, execution, completion, inspection, interrupt, and restart support.
 - JBang-first installation, dependency resolution, script interoperability, and reproducible examples.
 - Rich notebook output through extensible MIME renderers.
-- A stable extension boundary for Java libraries and the Andalus AI Triad.
+- Stable extension boundaries for Java libraries and the Andalus AI projects.
 - Clear separation between protocol, session lifecycle, Java execution, dependency management, and framework integrations.
 
-## Andalus AI Triad integrations
+## Ecosystem integrations
 
 | Project | Responsibility | JavaLand integration |
 | --- | --- | --- |
@@ -23,26 +23,25 @@ It provides a Jupyter-compatible Java kernel built around the modern JDK JShell 
 
 JavaLand must not own or duplicate any of these projects' domain logic.
 
-## Current migration status
+## Migration status
 
-The initial kernel implementation is being migrated from Tafkir's former Jupyter integration. The first migration preserves the existing implementation and its tests before extracting framework-specific behavior into optional extensions. Until that extraction is complete, some implementation packages, build coordinates, and notebook helpers may still carry Tafkir naming or dependencies.
+The initial implementation originated in an earlier Jupyter integration. Its public Java package, kernel entry point, launcher, and default JShell startup environment are now JavaLand-owned and framework-neutral. Framework-specific notebook helpers are not part of the generic kernel startup path; they will be provided through optional integrations.
 
-The migration is intentionally staged:
-1. Preserve the working kernel implementation and its operational tooling.
-2. Establish JavaLand as the owner of the Jupyter protocol and generic JShell runtime.
-3. Separate Tafkir-specific helpers and dependencies behind an optional integration.
-4. Add independent Aljabr and AQLI integrations using their published APIs.
-5. Make JBang the consistent developer-facing installation and launch experience.
+The remaining work is staged:
+1. Extract reusable JShell execution and session lifecycle APIs from the Jupyter transport adapter.
+2. Move any remaining framework-specific display behavior behind optional integrations.
+3. Add independent Aljabr and AQLI integrations using their published APIs.
+4. Make JBang the consistent developer-facing installation and launch experience.
 
 ## Development
 
-The kernel currently targets JDK 25 and uses JShell plus the JJava Jupyter protocol implementation. See the kernel module README for current build, installation, and diagnostic instructions.
+The kernel targets JDK 25 and uses JShell plus the JJava Jupyter protocol implementation. See the kernel module README for build, installation, and diagnostic instructions.
 
 ## Architecture principles
 
-- Separation of concerns across protocol, execution, session lifecycle, dependencies, display, and integrations.
-- SOLID applied proportionally; avoid abstractions without a concrete variation point.
-- One source of truth for runtime configuration and framework behavior.
+- Separate protocol, execution, session lifecycle, dependencies, display, and integrations.
+- Apply SOLID proportionally; avoid abstractions without a concrete variation point.
+- Maintain one source of truth for runtime configuration and framework behavior.
 - Depend on published public APIs, not implementation details from sibling repositories.
 - Keep the generic Java kernel useful without any Andalus AI dependency.
 - Document implemented capabilities separately from roadmap intentions.

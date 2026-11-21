@@ -38,6 +38,7 @@ tasks.test {
 }
 
 tasks.jar {
+    archiveBaseName.set("javaland-kernel")
     manifest {
         attributes(
             mapOf(
