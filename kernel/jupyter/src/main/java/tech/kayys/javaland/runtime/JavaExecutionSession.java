@@ -3,13 +3,14 @@ package tech.kayys.javaland.runtime;
 import org.dflib.jjava.execution.CodeEvaluator;
 import org.dflib.jjava.execution.CodeEvaluatorBuilder;
 import jdk.jshell.JShell;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Owns one persistent Java execution session, independently of any notebook protocol. */
 public final class JavaExecutionSession implements AutoCloseable {
     private static final String DEFAULT_STARTUP_SCRIPT = String.join("\n",
             "import java.util.*;", "import java.nio.file.*;", "import java.time.*;", "import java.math.*;");
     private final CodeEvaluator evaluator;
-    private volatile boolean closed;
+    private final AtomicBoolean closed = new AtomicBoolean();
 
     private JavaExecutionSession(String startupScript, String... compilerOptions) {
         this.evaluator = new CodeEvaluatorBuilder().sysStdout().sysStderr().sysStdin()
@@ -43,7 +44,7 @@ public final class JavaExecutionSession implements AutoCloseable {
 
     /** Interrupts a currently running evaluation, if any. */
     public void interrupt() {
-        if (!closed) evaluator.interrupt();
+        if (!closed.get()) evaluator.interrupt();
     }
 
     /** Exposes the JDK JShell instance for editor integrations such as completion. */
@@ -59,17 +60,16 @@ public final class JavaExecutionSession implements AutoCloseable {
         evaluator.getShell().addToClasspath(path);
     }
 
-    public boolean isClosed() { return closed; }
+    public boolean isClosed() { return closed.get(); }
 
     @Override
     public void close() {
-        if (!closed) {
-            closed = true;
+        if (closed.compareAndSet(false, true)) {
             evaluator.shutdown();
         }
     }
 
     private void ensureOpen() {
-        if (closed) throw new IllegalStateException("Java execution session is closed");
+        if (closed.get()) throw new IllegalStateException("Java execution session is closed");
     }
 }
