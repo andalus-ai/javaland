@@ -1,6 +1,7 @@
 package tech.kayys.javaland.runtime;
 
 import jdk.jshell.JShell;
+import jdk.jshell.Snippet;
 import jdk.jshell.SnippetEvent;
 
 import java.util.List;
@@ -128,7 +129,7 @@ public final class JavaExecutionSession implements AutoCloseable {
 
             List<SnippetEvent> events = shell.eval(snippetSource);
             for (SnippetEvent event : events) {
-                if (event.status() == jdk.jshell.Snippet.Status.REJECTED) {
+                if (event.status() == Snippet.Status.REJECTED) {
                     String diagnostics = shell.diagnostics(event.snippet())
                             .map(diagnostic -> diagnostic.getMessage(java.util.Locale.ROOT))
                             .reduce((left, right) -> left + System.lineSeparator() + right)
@@ -138,7 +139,8 @@ public final class JavaExecutionSession implements AutoCloseable {
                 if (event.exception() != null) {
                     throw new IllegalStateException("Java snippet execution failed", event.exception());
                 }
-                if (event.value() != null) {
+                // Jupyter cells display expression results, not variable initializers.
+                if (event.snippet().kind() == Snippet.Kind.EXPRESSION && event.value() != null) {
                     lastValue = event.value();
                 }
             }

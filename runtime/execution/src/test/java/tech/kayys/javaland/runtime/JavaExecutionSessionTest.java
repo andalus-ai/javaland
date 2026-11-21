@@ -5,13 +5,14 @@ import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.Test;
 
 class JavaExecutionSessionTest {
-    private static final String COMPILER_OPTIONS =
-            "--source", Integer.toString(Runtime.version().feature());
+    private static final String[] COMPILER_OPTIONS = {
+            "--source", Integer.toString(Runtime.version().feature())
+    };
 
     @Test
     void evaluatesExpressionsAndRetainsDeclarationsAcrossCells() throws Exception {
         try (JavaExecutionSession session = JavaExecutionSession.create()) {
-            session.eval("int answer = 40;");
+            assertNull(session.eval("int answer = 40;"));
             assertEquals("42", session.eval("answer + 2"));
         }
     }
