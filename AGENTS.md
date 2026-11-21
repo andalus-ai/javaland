@@ -19,8 +19,8 @@ JavaLand owns the reusable Java interactive development environment: Jupyter pro
 - Treat notebook execution as arbitrary code execution. Never claim sandboxing without actual process/container isolation.
 - Preserve compatibility deliberately and document migration/deprecation behavior.
 
-## Current migration caveat
-The initial Jupyter implementation was migrated from Tafkir. Some package names, helper behavior, build metadata, and tests still reflect the original Tafkir integration. Do not present those as the final JavaLand public API. Refactor incrementally, preserving working behavior and tests while extracting framework-specific features into optional integrations.
+## Package and integration boundary
+Use JavaLand-owned package names and public entry points. The generic kernel startup path must not preload any ML framework. Keep framework-specific displays, helpers, and domain behavior behind optional integrations.
 
 ## Verification
 - Add focused tests for protocol, execution, session lifecycle, completion, interruption, dependency handling, and MIME output.

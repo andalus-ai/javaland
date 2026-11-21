@@ -1,8 +1,10 @@
-> **Migration note:** This kernel has moved from Tafkir into [JavaLand](https://github.com/andalus-ai/javaland). The current code still contains legacy Tafkir package names and optional AI/ML helpers; these are being separated into framework integrations. Run commands from `javaland/kernel/jupyter`.
+# JavaLand Jupyter Kernel
 
-# tafkir-kernel
+Run commands from `javaland/kernel/jupyter`.
 
-Standalone Jupyter kernel for the Tafkir AI platform.
+# JavaLand Jupyter Kernel
+
+Standalone Jupyter-compatible Java kernel powered by JShell.
 
 Extends [JJava](https://github.com/dflib/jjava)'s `BaseKernel` (Jupyter wire
 protocol over ZMQ/JeroMQ) and executes notebook cells through JShell. There is
@@ -13,7 +15,7 @@ no IJava dependency and no separate server process.
 ```
 Jupyter ←──ZMQ──→ KernelLauncher
                        │
-                  TafkirKernel (extends BaseKernel)
+                  JavaLandKernel (extends BaseKernel)
                   ├── CodeEvaluator (JShell)
                   ├── CompletionProvider (JShell sourceCodeAnalysis)
                   ├── NotebookMagicDispatcher (exact/prefix magic routing)
@@ -44,10 +46,10 @@ Jupyter ←──ZMQ──→ KernelLauncher
                   ├── NotebookCharts (notebook SVG chart rendering)
                   ├── NotebookChartRenderer (line, scatter, and histogram preview envelopes)
                   ├── TensorDisplay (HTML heatmap rendering)
-                  └── Tafkir ML libraries on the kernel classpath
+                  └── Optional Java libraries on the kernel classpath
 ```
 
-`TafkirKernel` owns kernel lifecycle and runtime execution. Keep reusable
+`JavaLandKernel` owns kernel lifecycle and runtime execution. Keep reusable
 routing, argument parsing, runtime option parsing, table/data option parsing, file/archive option parsing, catalog, preload, runtime preview rendering, dependency parsing and lookup, dependency preview rendering, delimited data
 loading, document rendering, document preview rendering, file utilities, file preview rendering, archive parsing, table parsing,
 archive preview rendering, table rendering, summary rendering, stats preview rendering, chart preview rendering, table operations, profiles, schema inference, numeric stats, chart rendering, and HTML
@@ -113,15 +115,15 @@ fresh `build/libs/javaland-kernel.jar` directly from local source plus jars
 already present in your Maven repository.
 
 By default, the Maven rebuild path prefers offline mode after seeding the local
-cache. Override that with `TAFKIR_JUPYTER_MAVEN_OFFLINE=false` if you explicitly
+cache. Override that with `JAVALAND_JUPYTER_MAVEN_OFFLINE=false` if you explicitly
 want Maven to try network resolution.
 
 If the focused seed still misses parent POMs or plugin BOMs in your local
 offline cache, retry with:
 
 ```bash
-TAFKIR_JUPYTER_SEED_MODE=full ./rebuild_kernel.sh seed-home-m2
-TAFKIR_JUPYTER_SEED_M2=true TAFKIR_JUPYTER_SEED_MODE=full ./rebuild_kernel.sh maven
+JAVALAND_JUPYTER_SEED_MODE=full ./rebuild_kernel.sh seed-home-m2
+JAVALAND_JUPYTER_SEED_M2=true JAVALAND_JUPYTER_SEED_MODE=full ./rebuild_kernel.sh maven
 ```
 
 If you want the helper to tell you whether a missing artifact exists in your
@@ -163,7 +165,7 @@ python3 doctor.py
 
 That helper checks:
 
-- whether the `tafkir` kernelspec is installed
+- whether the `javaland` kernelspec is installed
 - which `kernel.json` Jupyter will resolve
 - which jar the installed `argv` points at
 - whether that jar is stale relative to current source
@@ -212,52 +214,13 @@ Cells run as plain Java snippets through JShell, so imports and variables work
 the way they do in a JShell session:
 
 ```java
-import tech.kayys.tafkir.ml.nn.Linear;
+import tech.kayys.JavaLand.ml.nn.Linear;
 
 var layer = new Linear(8, 4);
 System.out.println(layer);
 ```
 
-The kernel now preloads a small default Tafkir notebook import set, so a fresh
-session can use these symbols without a manual import cell:
-
-- `GradTensor`
-- `Linear`
-- `ReLU`
-- `Sequential`
-
-That means first cells like these work immediately:
-
-```java
-var t = GradTensor.ones(2, 2);
-new Sequential(new Linear(2, 3), new ReLU()).size();
-```
-
-The kernel also preloads a few tiny startup helpers for the first notebook cell:
-
-- `tafkirHelp()`
-- `tafkirTensorDemo()`
-- `tafkirPreviewTensorDemo()`
-- `tafkirMetricsDemo()`
-- `tafkirLossCurveDemo()`
-- `tafkirImageDemo()`
-- `tafkirAudioDemo()`
-- `tafkirModelDemo()`
-- `tafkirModelSummary()`
-
-Example:
-
-```java
-tafkirHelp();
-tafkirTensorDemo().shape()[0];
-tafkirPreviewTensorDemo();
-tafkirMetricsDemo();
-tafkirLossCurveDemo();
-tafkirImageDemo();
-tafkirAudioDemo();
-tafkirModelDemo().size();
-tafkirModelSummary();
-```
+A fresh session starts with standard Java utility, filesystem, time, and math imports. ML framework APIs are not loaded by default; add the libraries and imports required by a notebook explicitly.
 
 The kernel also supports a small starter magic layer:
 
@@ -360,8 +323,8 @@ Example:
 %help %envfile
 %help %maven
 %reset
-%time tafkirLossCurveDemo()
-%timeit -n 3 tafkirLossCurveDemo()
+%time javaLandMetricsDemo()
+%timeit -n 3 javaLandMetricsDemo()
 %classpath
 %pwd
 %cd ..
@@ -371,7 +334,7 @@ Example:
 %cat README.md
 %head -n 5 README.md
 %tail -n 5 README.md
-%grep Tafkir README.md
+%grep JavaLand README.md
 %findfile README .
 %wc README.md
 %diff baseline.yaml current.yaml
@@ -421,16 +384,16 @@ Example:
 %envfile .env
 %env PATH
 %addjar /absolute/path/to/local-lib.jar
-%maven tech.kayys.tafkir:tafkir-ml-autograd:0.1.0-SNAPSHOT
+%maven org.apache.commons:commons-math3:3.6.1
 %deps
-%whichclass tech.kayys.tafkir.ml.autograd.GradTensor
+%whichclass java.util.ArrayList
 %maven --explain definitely.missing:artifact:0.0.1
 %maven --allow-remote definitely.missing:artifact:0.0.1
 %maven --allow-remote --fetch definitely.missing:artifact:0.0.1
 ```
 
 `%reset` clears notebook variables, declarations, and dynamic dependency loads
-from `%addjar` / `%maven`, then reloads the default Tafkir imports and helpers
+from `%addjar` / `%maven`, then reloads the standard Java imports
 into a fresh JShell session.
 
 `%cd <PATH>` changes the notebook working directory used by `%pwd` and `%ls`.
@@ -577,7 +540,7 @@ If an artifact is missing:
 
 - `%maven --explain ...` shows the exact local paths the kernel searched
 - `%maven --allow-remote ...` prints the recommended `mvn dependency:get` command and the retry command, but does not perform network resolution inside the kernel
-- `%maven --allow-remote --fetch ...` is the explicit remote-fetch path, but it is disabled by default unless `TAFKIR_JUPYTER_ENABLE_REMOTE_MAVEN=true` is set in the notebook environment
+- `%maven --allow-remote --fetch ...` is the explicit remote-fetch path, but it is disabled by default unless `JAVALAND_JUPYTER_ENABLE_REMOTE_MAVEN=true` is set in the notebook environment
 
 The notebook renderer now also recognizes simple metrics/data-exploration shapes:
 
