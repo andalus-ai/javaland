@@ -63,6 +63,24 @@ class JupyterExecutionMessageHandlerTest {
         }
     }
 
+    @Test
+    void silentExecutionDoesNotPublishInputOrResultOrAdvanceHistory() throws Exception {
+        try (var handler = new JupyterExecutionMessageHandler(JavaExecutionSession.create())) {
+            var silent = handler.handle(inbound("execute_request",
+                    Map.of("code", "6 * 7", "silent", true, "store_history", true)));
+            assertEquals(List.of("status", "execute_reply", "status"),
+                    silent.stream().map(item -> item.message().header().messageType()).toList());
+            assertEquals(0, silent.get(1).message().content().get("execution_count"));
+
+            var visible = handler.handle(inbound("execute_request",
+                    Map.of("code", "7 * 6", "silent", false, "store_history", true)));
+            var reply = visible.stream()
+                    .filter(item -> item.message().header().messageType().equals("execute_reply"))
+                    .findFirst().orElseThrow();
+            assertEquals(1, reply.message().content().get("execution_count"));
+        }
+    }
+
     private static JupyterInboundMessage inbound(String type, Map<String, Object> content) {
         var header = new JupyterMessageHeader(
                 "request-1", "test-user", "request-session", Instant.now().toString(), type, "5.3");
