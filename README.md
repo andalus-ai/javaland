@@ -27,10 +27,11 @@ JavaLand must not own or duplicate any of these projects' domain logic.
 
 - `:runtime:execution` owns persistent JDK JShell sessions.
 - `:protocol:jupyter` owns Jupyter message/configuration/signature primitives.
+- `:transport:jupyter-zmq` owns ZeroMQ sockets, channel endpoints, multipart framing, and routing identities.
 - `:kernel:jupyter` adapts Jupyter requests to execution sessions and notebook renderers.
 - Optional ecosystem integrations consume published public APIs without coupling the generic Java kernel to AI frameworks.
 
-The protocol module is intentionally independent of JShell and the kernel adapter. Its codec owns the signed JSON message frames; transport-specific ZeroMQ framing belongs in a separate transport layer.
+The protocol module is intentionally independent of JShell and the kernel adapter. Its codec owns the signed JSON message frames; `:transport:jupyter-zmq` owns ZeroMQ framing and socket lifecycle. The kernel will coordinate the two layers.
 
 ## Migration status
 
@@ -38,14 +39,15 @@ The reusable execution session is extracted into `:runtime:execution` and implem
 
 The reusable execution session is extracted into the independent `:runtime:execution` Gradle module. Its implementation uses the JDK JShell API directly and has no JJava dependency. The `:kernel:jupyter` module consumes this runtime.
 
-The Jupyter protocol transport still uses JJava as a transitional dependency. JavaLand will replace that layer with its own protocol implementation so the project does not depend on an external kernel implementation for either execution or messaging.
+The protocol primitives and first JavaLand-owned ZeroMQ transport foundation now exist. The kernel launcher still uses JJava for dispatch and event-loop coordination; the transport module is not yet wired into the kernel.
 
 Remaining work is staged:
 
-1. Replace the JJava Jupyter transport with JavaLand-owned protocol and message handling.
-2. Move remaining framework-specific display behavior behind optional integrations.
-3. Add independent Aljabr and AQLI integrations using their published APIs.
-4. Make JBang the consistent developer-facing installation and launch experience.
+1. Add a poller/event-loop abstraction and integrate the new transport with the kernel dispatcher.
+2. Replace JJava's kernel lifecycle and message dispatch incrementally, preserving protocol behavior.
+3. Move remaining framework-specific display behavior behind optional integrations.
+4. Add independent Aljabr and AQLI integrations using their published APIs.
+5. Make JBang the consistent developer-facing installation and launch experience.
 
 ## Development
 
