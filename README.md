@@ -36,17 +36,20 @@ The protocol module is intentionally independent of JShell and the kernel adapte
 
 The reusable execution session is extracted into `:runtime:execution` and implemented directly on JDK JShell. The initial JavaLand-owned Jupyter protocol core is now in `:protocol:jupyter`: connection-file parsing, message envelopes, JSON frame serialization, and HMAC signing/verification.
 
-The running kernel still uses JJava for ZeroMQ transport and kernel dispatch. The remaining protocol migration will replace those responsibilities with JavaLand-owned transport and message routing, preserving the existing kernel behavior during the transition.
+The reusable execution session is extracted into the independent `:runtime:execution` Gradle module. Its implementation uses the JDK JShell API directly and has no JJava dependency. The `:kernel:jupyter` module consumes this runtime.
+
+The Jupyter protocol transport still uses JJava as a transitional dependency. JavaLand will replace that layer with its own protocol implementation so the project does not depend on an external kernel implementation for either execution or messaging.
+
+Remaining work is staged:
+
+1. Replace the JJava Jupyter transport with JavaLand-owned protocol and message handling.
+2. Move remaining framework-specific display behavior behind optional integrations.
+3. Add independent Aljabr and AQLI integrations using their published APIs.
+4. Make JBang the consistent developer-facing installation and launch experience.
 
 ## Development
 
-Modules target JDK 25. Build the execution runtime and protocol core independently:
-
-```bash
-gradle :runtime:execution:test :protocol:jupyter:test
-```
-
-See each module README for its API and build details.
+The runtime and kernel target JDK 25. The runtime module can be built and tested independently; see its README for details.
 
 ## Architecture principles
 
