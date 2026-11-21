@@ -1,3 +1,3 @@
 rootProject.name = "javaland"
 
-include(":kernel:jupyter")
+include(":runtime:execution", ":kernel:jupyter")
