@@ -5,7 +5,6 @@ plugins {
     `maven-publish`
 }
 
-
 group = "tech.kayys.javaland"
 version = "0.1.0-SNAPSHOT"
 
@@ -21,11 +20,11 @@ repositories {
 }
 
 dependencies {
+    implementation(project(":runtime:execution"))
+    // Transitional Jupyter protocol transport; the execution runtime is JavaLand-owned.
     implementation(group = "org.dflib.jjava", name = "jjava", version = "1.0-a4")
-    // The kernel itself only needs Javaland ML jars at runtime so notebook
-    // snippets can import them; source compilation uses reflection.
+    // Notebook snippets can import the published Aljabr tensor API.
     runtimeOnly("tech.kayys.aljabr:aljabr-tensor:0.1.0-SNAPSHOT")
-    runtimeOnly(project(":ml:javaland-ml-autograd"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testImplementation("tech.kayys.aljabr:aljabr-tensor:0.1.0-SNAPSHOT")
     testImplementation("tech.kayys.aljabr:aljabr-core:0.1.0-SNAPSHOT")

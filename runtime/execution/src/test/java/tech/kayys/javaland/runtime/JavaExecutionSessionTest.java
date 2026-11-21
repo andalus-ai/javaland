@@ -5,9 +5,8 @@ import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.Test;
 
 class JavaExecutionSessionTest {
-    private static final String[] COMPILER_OPTIONS = {
-            "--source", Integer.toString(Runtime.version().feature())
-    };
+    private static final String COMPILER_OPTIONS =
+            "--source", Integer.toString(Runtime.version().feature());
 
     @Test
     void evaluatesExpressionsAndRetainsDeclarationsAcrossCells() throws Exception {

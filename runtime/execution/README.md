@@ -28,8 +28,10 @@ This module has no JJava dependency and no project dependency on
 `:kernel:jupyter`. It can be consumed by other JavaLand runtimes and tools
 without adopting the Jupyter protocol.
 
-The Jupyter kernel is an adapter that depends on this module. It remains
-responsible for Jupyter messaging, MIME display, and notebook-specific behavior.
+The Jupyter kernel is an adapter that depends on this module. The protocol
+transport still uses JJava as a temporary dependency; replacing that protocol
+layer with JavaLand-owned Jupyter messaging is a separate migration step.
+JJava types do not cross into the execution runtime's public API.
 
 Session operations are serialized because JShell is not thread-safe.
 Interruption is deliberately callable from another thread and delegates to

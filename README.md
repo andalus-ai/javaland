@@ -27,13 +27,16 @@ JavaLand must not own or duplicate any of these projects' domain logic.
 
 The initial implementation originated in an earlier Jupyter integration. Its public Java package, kernel entry point, launcher, and default JShell startup environment are now JavaLand-owned and framework-neutral. Framework-specific notebook helpers are not part of the generic kernel startup path; they will be provided through optional integrations.
 
-The reusable execution session is extracted into the independent `:runtime:execution` Gradle module. Its implementation uses the JDK JShell API directly and has no JJava dependency. The `:kernel:jupyter` module is a protocol adapter that consumes this runtime.
+The reusable execution session is extracted into the independent `:runtime:execution` Gradle module. Its implementation uses the JDK JShell API directly and has no JJava dependency. The `:kernel:jupyter` module consumes this runtime.
+
+The Jupyter protocol transport still uses JJava as a transitional dependency. JavaLand will replace that layer with its own protocol implementation so the project does not depend on an external kernel implementation for either execution or messaging.
 
 Remaining work is staged:
 
-1. Move remaining framework-specific display behavior behind optional integrations.
-2. Add independent Aljabr and AQLI integrations using their published APIs.
-3. Make JBang the consistent developer-facing installation and launch experience.
+1. Replace the JJava Jupyter transport with JavaLand-owned protocol and message handling.
+2. Move remaining framework-specific display behavior behind optional integrations.
+3. Add independent Aljabr and AQLI integrations using their published APIs.
+4. Make JBang the consistent developer-facing installation and launch experience.
 
 ## Development
 
