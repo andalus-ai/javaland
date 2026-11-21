@@ -1,75 +1,172 @@
 package tech.kayys.javaland.runtime;
 
-import org.dflib.jjava.execution.CodeEvaluator;
-import org.dflib.jjava.execution.CodeEvaluatorBuilder;
 import jdk.jshell.JShell;
+import jdk.jshell.Snippet;
+import jdk.jshell.SnippetEvent;
+
+import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-/** Owns one persistent Java execution session, independently of any notebook protocol. */
+/**
+ * Owns one persistent Java execution session, independently of any notebook protocol.
+ *
+ * <p>All session operations are serialized because {@link JShell} is not thread-safe.
+ * {@link #interrupt()} is intentionally lock-free so it can stop an evaluation running
+ * on another thread.</p>
+ */
 public final class JavaExecutionSession implements AutoCloseable {
     private static final String DEFAULT_STARTUP_SCRIPT = String.join("\n",
-            "import java.util.*;", "import java.nio.file.*;", "import java.time.*;", "import java.math.*;");
-    private final CodeEvaluator evaluator;
+            "import java.util.*;",
+            "import java.nio.file.*;",
+            "import java.time.*;",
+            "import java.math.*;");
+
+    private final JShell shell;
     private final AtomicBoolean closed = new AtomicBoolean();
 
     private JavaExecutionSession(String startupScript, String... compilerOptions) {
-        this.evaluator = new CodeEvaluatorBuilder().sysStdout().sysStderr().sysStdin()
-                .compilerOpts(compilerOptions).startupScript(startupScript).build();
+        this.shell = JShell.builder()
+                .in(System.in)
+                .out(System.out)
+                .err(System.err)
+                .compilerOptions(compilerOptions)
+                .build();
+        try {
+            evaluateSource(startupScript);
+        } catch (RuntimeException failure) {
+            shell.close();
+            throw failure;
+        }
     }
 
     /** Creates a session with JavaLand's standard Java imports and compiler defaults. */
     public static JavaExecutionSession create() {
-        return create(DEFAULT_STARTUP_SCRIPT, "--enable-preview", "--source",
-                Integer.toString(Runtime.version().feature()), "--add-modules=jdk.incubator.vector");
+        return create(DEFAULT_STARTUP_SCRIPT,
+                "--enable-preview",
+                "--source", Integer.toString(Runtime.version().feature()),
+                "--add-modules=jdk.incubator.vector");
     }
 
     /** Creates a session with explicit startup source and JShell compiler options. */
     public static JavaExecutionSession create(String startupScript, String... compilerOptions) {
-        if (startupScript == null) throw new IllegalArgumentException("startupScript must not be null");
-        if (compilerOptions == null) throw new IllegalArgumentException("compilerOptions must not be null");
+        Objects.requireNonNull(startupScript, "startupScript must not be null");
+        Objects.requireNonNull(compilerOptions, "compilerOptions must not be null");
         return new JavaExecutionSession(startupScript, compilerOptions.clone());
     }
 
-    /** Evaluates source in the persistent session. */
-    public Object eval(String source) throws Exception {
+    /** Evaluates one or more complete snippets in the persistent session. */
+    public synchronized Object eval(String source) throws Exception {
         ensureOpen();
-        return evaluator.eval(source);
+        Objects.requireNonNull(source, "source must not be null");
+        return evaluateSource(source);
     }
 
-    /** Returns JShell's source completeness classification. */
-    public String isComplete(String source) {
+    /**
+     * Returns the Jupyter completeness token for the supplied source:
+     * {@code complete} or {@code incomplete}.
+     */
+    public synchronized String isComplete(String source) {
         ensureOpen();
-        return evaluator.isComplete(source);
+        Objects.requireNonNull(source, "source must not be null");
+        return isSourceComplete(source) ? "complete" : "incomplete";
     }
 
-    /** Interrupts a currently running evaluation, if any. */
+    /** Attempts to stop user code currently executing in this session. */
     public void interrupt() {
-        if (!closed.get()) evaluator.interrupt();
+        if (!closed.get()) {
+            shell.stop();
+        }
     }
 
-    /** Exposes the JDK JShell instance for editor integrations such as completion. */
-    public JShell shell() {
+    /**
+     * Exposes the JDK JShell instance for editor integrations such as completion.
+     * Callers must not access it concurrently with session operations.
+     */
+    public synchronized JShell shell() {
         ensureOpen();
-        return evaluator.getShell();
+        return shell;
     }
 
     /** Adds a JAR or directory to the active JShell class path. */
-    public void addToClasspath(String path) {
+    public synchronized void addToClasspath(String path) {
         ensureOpen();
-        if (path == null || path.isBlank()) throw new IllegalArgumentException("path must not be blank");
-        evaluator.getShell().addToClasspath(path);
+        if (path == null || path.isBlank()) {
+            throw new IllegalArgumentException("path must not be blank");
+        }
+        shell.addToClasspath(path);
     }
 
-    public boolean isClosed() { return closed.get(); }
+    public boolean isClosed() {
+        return closed.get();
+    }
 
     @Override
     public void close() {
         if (closed.compareAndSet(false, true)) {
-            evaluator.shutdown();
+            // Stop first so close does not wait indefinitely for a running user snippet.
+            shell.stop();
+            synchronized (this) {
+                shell.close();
+            }
         }
     }
 
+    private Object evaluateSource(String source) {
+        String remaining = source;
+        Object lastValue = null;
+
+        while (!remaining.isBlank()) {
+            var completion = shell.sourceCodeAnalysis().analyzeCompletion(remaining);
+            if (!completion.completeness().isComplete()) {
+                throw new IllegalArgumentException("Incomplete Java source");
+            }
+
+            String snippetSource = completion.source();
+            if (snippetSource.isBlank()) {
+                break;
+            }
+
+            List<SnippetEvent> events = shell.eval(snippetSource);
+            for (SnippetEvent event : events) {
+                if (event.status() == Snippet.Status.REJECTED) {
+                    String diagnostics = shell.diagnostics(event.snippet())
+                            .map(diagnostic -> diagnostic.getMessage(java.util.Locale.ROOT))
+                            .reduce((left, right) -> left + System.lineSeparator() + right)
+                            .orElse("Java snippet was rejected");
+                    throw new IllegalArgumentException(diagnostics);
+                }
+                if (event.exception() != null) {
+                    throw new IllegalStateException("Java snippet execution failed", event.exception());
+                }
+                // Jupyter cells display expression results, not variable initializers.
+                if (event.snippet().kind() == Snippet.Kind.EXPRESSION && event.value() != null) {
+                    lastValue = event.value();
+                }
+            }
+            remaining = completion.remaining();
+        }
+        return lastValue;
+    }
+
+    private boolean isSourceComplete(String source) {
+        String remaining = source;
+        while (!remaining.isBlank()) {
+            var completion = shell.sourceCodeAnalysis().analyzeCompletion(remaining);
+            if (!completion.completeness().isComplete()) {
+                return false;
+            }
+            if (completion.source().isBlank()) {
+                return true;
+            }
+            remaining = completion.remaining();
+        }
+        return true;
+    }
+
     private void ensureOpen() {
-        if (closed.get()) throw new IllegalStateException("Java execution session is closed");
+        if (closed.get()) {
+            throw new IllegalStateException("Java execution session is closed");
+        }
     }
 }
