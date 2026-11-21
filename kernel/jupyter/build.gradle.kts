@@ -1,12 +1,13 @@
+import org.gradle.api.file.DuplicatesStrategy
+
 plugins {
     `java-library`
     `maven-publish`
 }
 
-import org.gradle.api.file.DuplicatesStrategy
 
-group = "tech.kayys.javaland"
-version = rootProject.version
+group = "tech.kayys.tafkir"
+version = "0.1.0-SNAPSHOT"
 
 java {
     toolchain {
@@ -20,7 +21,11 @@ repositories {
 }
 
 dependencies {
-    implementation("org.dflib.jjava:jjava:1.0-a4")
+    implementation(group = "org.dflib.jjava", name = "jjava", version = "1.0-a4")
+    // The kernel itself only needs Tafkir ML jars at runtime so notebook
+    // snippets can import them; source compilation uses reflection.
+    runtimeOnly("tech.kayys.aljabr:aljabr-tensor:0.1.0-SNAPSHOT")
+    runtimeOnly(project(":ml:tafkir-ml-autograd"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testImplementation("tech.kayys.aljabr:aljabr-tensor:0.1.0-SNAPSHOT")
     testImplementation("tech.kayys.aljabr:aljabr-core:0.1.0-SNAPSHOT")
@@ -33,26 +38,29 @@ tasks.test {
 }
 
 tasks.jar {
-    archiveBaseName.set("javaland-kernel")
     manifest {
         attributes(
-            "Main-Class" to "tech.kayys.tafkir.jupyter.KernelLauncher",
-            "Automatic-Module-Name" to "tech.kayys.javaland.kernel.jupyter"
+            mapOf(
+                "Main-Class" to "tech.kayys.tafkir.jupyter.KernelLauncher",
+                "Automatic-Module-Name" to "tech.kayys.tafkir.jupyter.kernel"
+            )
         )
     }
 }
 
 val fatJar by tasks.registering(Jar::class) {
     group = "build"
-    description = "Assemble a runnable standalone JavaLand Jupyter kernel jar."
-    archiveBaseName.set("javaland-kernel")
+    description = "Assemble a runnable standalone Tafkir Jupyter kernel jar."
+    archiveBaseName.set("tafkir-kernel")
     archiveClassifier.set("")
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 
     manifest {
         attributes(
-            "Main-Class" to "tech.kayys.tafkir.jupyter.KernelLauncher",
-            "Automatic-Module-Name" to "tech.kayys.javaland.kernel.jupyter"
+            mapOf(
+                "Main-Class" to "tech.kayys.tafkir.jupyter.KernelLauncher",
+                "Automatic-Module-Name" to "tech.kayys.tafkir.jupyter.kernel"
+            )
         )
     }
 

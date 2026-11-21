@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Inspect the installed Tafkir Jupyter kernelspec and jar wiring."""
+"""Inspect the installed JavaLand Jupyter kernelspec and jar wiring."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from install import latest_source_mtime, resolve_kernel_jar
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Inspect the installed Tafkir Jupyter kernelspec")
+    parser = argparse.ArgumentParser(description="Inspect the installed JavaLand Jupyter kernelspec")
     parser.add_argument("--kernel-name", default="tafkir", help="Kernelspec name to inspect.")
     parser.add_argument("--prefix", help="Inspect a specific Jupyter prefix instead of auto-discovery.")
     parser.add_argument("--verbose", action="store_true", help="Print the resolved kernelspec JSON.")
@@ -91,7 +91,7 @@ def main() -> int:
     base_dir = Path(__file__).resolve().parent
     installed_kernel_json = find_installed_kernel(args.kernel_name, args.prefix)
 
-    print("Tafkir Jupyter kernel doctor")
+    print("JavaLand Jupyter kernel doctor")
     print(f"  module dir:           {base_dir}")
     print(f"  kernel name:          {args.kernel_name}")
 
@@ -157,7 +157,7 @@ def main() -> int:
     else:
         print("✅ installed jar is fresh relative to current source files")
 
-    expected_installed_jar = installed_dir / "tafkir-kernel.jar"
+    expected_installed_jar = installed_dir / "javaland-kernel.jar"
     if installed_jar.resolve() != expected_installed_jar.resolve():
         print("⚠️  kernelspec does not point at the copied jar inside its install directory")
         print(f"   expected installed jar: {expected_installed_jar}")

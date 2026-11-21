@@ -10,7 +10,7 @@ LOCAL_M2="$LOCAL_CACHE_DIR/m2"
 LOCAL_GRADLE_HOME="$LOCAL_CACHE_DIR/gradle"
 DEFAULT_MVN_BIN="${MVN_BIN:-$(command -v mvn || true)}"
 DEFAULT_GRADLE_BIN="${GRADLE_BIN:-$(command -v gradle || true)}"
-KERNEL_JAR="$MODULE_DIR/target/tafkir-kernel.jar"
+KERNEL_JAR="$MODULE_DIR/build/libs/javaland-kernel.jar"
 
 usage() {
   cat <<'EOF'
@@ -124,7 +124,7 @@ seed_home_m2_command() {
 }
 
 doctor() {
-  echo "Tafkir Jupyter kernel rebuild doctor"
+  echo "JavaLand Jupyter kernel rebuild doctor"
   echo "  module:        $MODULE_DIR"
   echo "  repo root:     $REPO_ROOT"
   echo "  local m2:      $(local_m2)"

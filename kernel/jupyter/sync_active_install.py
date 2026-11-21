@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Refresh the active Tafkir Jupyter kernelspec in the detected Jupyter data dir."""
+"""Refresh the active JavaLand Jupyter kernelspec in the detected Jupyter data dir."""
 
 from __future__ import annotations
 
@@ -22,9 +22,9 @@ from install import (
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Sync the active Tafkir Jupyter kernelspec")
+    parser = argparse.ArgumentParser(description="Sync the active JavaLand Jupyter kernelspec")
     parser.add_argument("--kernel-name", default="tafkir", help="Kernelspec name to repair.")
-    parser.add_argument("--display-name", default="Tafkir (Java 25 + AI/ML)")
+    parser.add_argument("--display-name", default="JavaLand (Java 25)")
     parser.add_argument("--jar", help="Use a specific runnable kernel jar.")
     parser.add_argument("--prefix", help="Repair a kernel under a specific Jupyter prefix.")
     parser.add_argument(
@@ -76,7 +76,7 @@ def main() -> int:
     existing_kernel_spec = load_kernel_spec(installed_kernel_json) if installed_kernel_json else None
     existing_jar = extract_jar_from_argv(existing_kernel_spec.get("argv", [])) if existing_kernel_spec else None
 
-    print("Tafkir Jupyter kernel sync")
+    print("JavaLand Jupyter kernel sync")
     print(f"  source jar:            {jar_src}")
     print(f"  target install dir:    {install_dir}")
     print(f"  target kernel.json:    {target_kernel_json}")
@@ -115,7 +115,7 @@ def main() -> int:
     shutil.copy2(jar_src, target_kernel_jar)
     target_kernel_json.write_text(json.dumps(kernel_spec, indent=2))
 
-    print(f"✅ active Tafkir kernelspec refreshed: {install_dir}")
+    print(f"✅ active JavaLand kernelspec refreshed: {install_dir}")
     print("   next: python3 doctor.py")
     print("   then: python3 selftest.py")
     return 0
