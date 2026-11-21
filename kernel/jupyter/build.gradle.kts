@@ -36,7 +36,7 @@ tasks.jar {
     archiveBaseName.set("javaland-kernel")
     manifest {
         attributes(
-            "Main-Class" to "tech.kayys.tafkir.jupyter.KernelLauncher",
+            "Main-Class" to "tech.kayys.javaland.kernel.jupyter.KernelLauncher",
             "Automatic-Module-Name" to "tech.kayys.javaland.kernel.jupyter"
         )
     }
@@ -51,7 +51,7 @@ val fatJar by tasks.registering(Jar::class) {
 
     manifest {
         attributes(
-            "Main-Class" to "tech.kayys.tafkir.jupyter.KernelLauncher",
+            "Main-Class" to "tech.kayys.javaland.kernel.jupyter.KernelLauncher",
             "Automatic-Module-Name" to "tech.kayys.javaland.kernel.jupyter"
         )
     }
