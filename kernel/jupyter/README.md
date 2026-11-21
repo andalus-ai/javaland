@@ -554,6 +554,26 @@ The notebook renderer now also recognizes simple metrics/data-exploration shapes
 - `BufferedImage` as an inline PNG preview
 - `NotebookAudioClip` as an inline WAV audio preview
 
+## Java execution session API
+
+The kernel delegates persistent JShell ownership to
+`tech.kayys.javaland.runtime.JavaExecutionSession`. This API has no Jupyter
+protocol types and can be reused by other JavaLand adapters:
+
+```java
+try (var session = JavaExecutionSession.create()) {
+    session.eval("var answer = 40;");
+    Object result = session.eval("answer + 2");
+    System.out.println(result);
+}
+```
+
+The session owns evaluation, compiler/startup configuration, classpath updates,
+interrupt, and shutdown. Jupyter-specific completion and message handling stay
+in the kernel adapter. The default session uses standard Java imports; custom
+startup source and compiler options are available through the overloaded
+`create(startupScript, compilerOptions...)` factory.
+
 ## JVM options
 
 Edit `kernel.json` (in the installed kernelspec directory) to tune memory:
