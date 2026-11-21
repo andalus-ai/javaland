@@ -23,9 +23,18 @@ It provides a Jupyter-compatible Java kernel built around the modern JDK JShell 
 
 JavaLand must not own or duplicate any of these projects' domain logic.
 
+## Architecture
+
+- `:runtime:execution` owns persistent JDK JShell sessions.
+- `:protocol:jupyter` owns Jupyter message/configuration/signature primitives.
+- `:kernel:jupyter` adapts Jupyter requests to execution sessions and notebook renderers.
+- Optional ecosystem integrations consume published public APIs without coupling the generic Java kernel to AI frameworks.
+
+The protocol module is intentionally independent of JShell and the kernel adapter. Its codec owns the signed JSON message frames; transport-specific ZeroMQ framing belongs in a separate transport layer.
+
 ## Migration status
 
-The initial implementation originated in an earlier Jupyter integration. Its public Java package, kernel entry point, launcher, and default JShell startup environment are now JavaLand-owned and framework-neutral. Framework-specific notebook helpers are not part of the generic kernel startup path; they will be provided through optional integrations.
+The reusable execution session is extracted into `:runtime:execution` and implemented directly on JDK JShell. The initial JavaLand-owned Jupyter protocol core is now in `:protocol:jupyter`: connection-file parsing, message envelopes, JSON frame serialization, and HMAC signing/verification.
 
 The reusable execution session is extracted into the independent `:runtime:execution` Gradle module. Its implementation uses the JDK JShell API directly and has no JJava dependency. The `:kernel:jupyter` module consumes this runtime.
 
@@ -44,7 +53,7 @@ The runtime and kernel target JDK 25. The runtime module can be built and tested
 
 ## Architecture principles
 
-- Separate protocol, execution, session lifecycle, dependencies, display, and integrations.
+- Separate protocol, transport, execution, session lifecycle, dependencies, display, and integrations.
 - Apply SOLID proportionally; avoid abstractions without a concrete variation point.
 - Maintain one source of truth for runtime configuration and framework behavior.
 - Depend on published public APIs, not implementation details from sibling repositories.
