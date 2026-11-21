@@ -20,7 +20,9 @@ repositories {
 }
 
 dependencies {
-    // JJava supplies the Jupyter protocol transport and JShell-backed evaluator.
+    implementation(project(":runtime:execution"))
+
+    // JJava supplies the Jupyter protocol transport.
     implementation("org.dflib.jjava:jjava:1.0-a4")
 
     testImplementation("org.junit.jupiter:junit-jupiter:5.12.2")
