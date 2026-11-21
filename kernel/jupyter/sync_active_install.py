@@ -23,7 +23,7 @@ from install import (
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Sync the active JavaLand Jupyter kernelspec")
-    parser.add_argument("--kernel-name", default="tafkir", help="Kernelspec name to repair.")
+    parser.add_argument("--kernel-name", default="javaland", help="Kernelspec name to repair.")
     parser.add_argument("--display-name", default="JavaLand (Java 25)")
     parser.add_argument("--jar", help="Use a specific runnable kernel jar.")
     parser.add_argument("--prefix", help="Repair a kernel under a specific Jupyter prefix.")

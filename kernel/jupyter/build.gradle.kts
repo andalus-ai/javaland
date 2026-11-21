@@ -5,9 +5,8 @@ plugins {
     `maven-publish`
 }
 
-
-group = "tech.kayys.tafkir"
-version = "0.1.0-SNAPSHOT"
+group = "tech.kayys.javaland"
+version = rootProject.version
 
 java {
     toolchain {
@@ -21,15 +20,11 @@ repositories {
 }
 
 dependencies {
-    implementation(group = "org.dflib.jjava", name = "jjava", version = "1.0-a4")
-    // The kernel itself only needs Tafkir ML jars at runtime so notebook
-    // snippets can import them; source compilation uses reflection.
-    runtimeOnly("tech.kayys.aljabr:aljabr-tensor:0.1.0-SNAPSHOT")
-    runtimeOnly(project(":ml:tafkir-ml-autograd"))
-    testImplementation("org.junit.jupiter:junit-jupiter")
-    testImplementation("tech.kayys.aljabr:aljabr-tensor:0.1.0-SNAPSHOT")
-    testImplementation("tech.kayys.aljabr:aljabr-core:0.1.0-SNAPSHOT")
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+    // JJava supplies the Jupyter protocol transport and JShell-backed evaluator.
+    implementation("org.dflib.jjava:jjava:1.0-a4")
+
+    testImplementation("org.junit.jupiter:junit-jupiter:5.12.2")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.12.2")
 }
 
 tasks.test {
@@ -38,29 +33,26 @@ tasks.test {
 }
 
 tasks.jar {
+    archiveBaseName.set("javaland-kernel")
     manifest {
         attributes(
-            mapOf(
-                "Main-Class" to "tech.kayys.tafkir.jupyter.KernelLauncher",
-                "Automatic-Module-Name" to "tech.kayys.tafkir.jupyter.kernel"
-            )
+            "Main-Class" to "tech.kayys.tafkir.jupyter.KernelLauncher",
+            "Automatic-Module-Name" to "tech.kayys.javaland.kernel.jupyter"
         )
     }
 }
 
 val fatJar by tasks.registering(Jar::class) {
     group = "build"
-    description = "Assemble a runnable standalone Tafkir Jupyter kernel jar."
-    archiveBaseName.set("tafkir-kernel")
+    description = "Assemble a runnable standalone JavaLand Jupyter kernel jar."
+    archiveBaseName.set("javaland-kernel")
     archiveClassifier.set("")
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 
     manifest {
         attributes(
-            mapOf(
-                "Main-Class" to "tech.kayys.tafkir.jupyter.KernelLauncher",
-                "Automatic-Module-Name" to "tech.kayys.tafkir.jupyter.kernel"
-            )
+            "Main-Class" to "tech.kayys.tafkir.jupyter.KernelLauncher",
+            "Automatic-Module-Name" to "tech.kayys.javaland.kernel.jupyter"
         )
     }
 
