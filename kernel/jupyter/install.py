@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Install the Tafkir standalone Jupyter kernel."""
+"""Install the JavaLand standalone Jupyter kernel."""
 
 from __future__ import annotations
 
@@ -12,16 +12,16 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-JAR_NAME = "tafkir-kernel.jar"
+JAR_NAME = "javaland-kernel.jar"
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Install Tafkir Jupyter Kernel")
+    parser = argparse.ArgumentParser(description="Install JavaLand Jupyter Kernel")
     parser.add_argument("--user", action="store_true")
     parser.add_argument("--sys-prefix", action="store_true")
     parser.add_argument("--prefix")
-    parser.add_argument("--kernel-name", default="tafkir")
-    parser.add_argument("--display-name", default="Tafkir (Java 25 + AI/ML)")
+    parser.add_argument("--kernel-name", default="javaland")
+    parser.add_argument("--display-name", default="JavaLand (Java 25)")
     parser.add_argument("--jar", help="Use a specific runnable kernel jar.")
     parser.add_argument(
         "--allow-stale-jar",
@@ -44,7 +44,7 @@ def resolve_kernel_jar(base_dir: Path, explicit: str | None) -> Path:
         [
             base_dir / "build" / "libs" / JAR_NAME,
             base_dir / "target" / JAR_NAME,
-            base_dir / "target" / "original-tafkir-kernel.jar",
+            base_dir / "target" / "original-javaland-kernel.jar",
         ]
     )
     build_libs = base_dir / "build" / "libs"
@@ -58,11 +58,11 @@ def resolve_kernel_jar(base_dir: Path, explicit: str | None) -> Path:
 
     searched = "\n".join(f"  - {path}" for path in candidates)
     raise FileNotFoundError(
-        "Tafkir kernel jar not found.\n"
+        "JavaLand kernel jar not found.\n"
         f"Searched:\n{searched}\n"
         "Build one first with either:\n"
-        "  - mvn -f tafkir/integration/jupyter/tafkir-jupyter-kernel/pom.xml -DskipTests package\n"
-        "  - ./gradlew :integration:jupyter:tafkir-jupyter-kernel:build"
+        "  - mvn -f kernel/jupyter/pom.xml -DskipTests package\n"
+        "  - ./gradlew :kernel:jupyter:build"
     )
 
 
@@ -153,8 +153,8 @@ def validate_kernel_jar_freshness(base_dir: Path, jar_path: Path, allow_stale: b
         f"  jar:    {jar_path} ({jar_ts})\n"
         f"  source: {latest_path} ({src_ts})\n"
         "Rebuild before install/self-test with either:\n"
-        "  - mvn -f tafkir/integration/jupyter/tafkir-jupyter-kernel/pom.xml -DskipTests package\n"
-        "  - ./gradlew :integration:jupyter:tafkir-jupyter-kernel:build\n"
+        "  - mvn -f kernel/jupyter/pom.xml -DskipTests package\n"
+        "  - ./gradlew :kernel:jupyter:build\n"
         "If you intentionally want the old jar, rerun with --allow-stale-jar."
     )
 
@@ -176,7 +176,7 @@ def main() -> int:
     kernel_spec = render_kernel_spec(kernel_template, install_dir, args.display_name)
 
     if args.dry_run:
-        print("Tafkir Jupyter kernel dry run")
+        print("JavaLand Jupyter kernel dry run")
         print(f"  kernel jar:     {jar_src}")
         print(f"  install dir:    {install_dir}")
         print(f"  display name:   {args.display_name}")
@@ -191,7 +191,7 @@ def main() -> int:
     shutil.copy2(jar_src, install_dir / JAR_NAME)
     (install_dir / "kernel.json").write_text(json.dumps(kernel_spec, indent=2))
 
-    print(f"✅ Tafkir kernel installed: {install_dir}")
+    print(f"✅ JavaLand kernel installed: {install_dir}")
     print("   Verify: jupyter kernelspec list")
     return 0
 

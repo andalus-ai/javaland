@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Smoke-test the standalone Tafkir Jupyter kernel startup path."""
+"""Smoke-test the standalone JavaLand Jupyter kernel startup path."""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ from install import (
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Self-test Tafkir Jupyter kernel startup")
+    parser = argparse.ArgumentParser(description="Self-test JavaLand Jupyter kernel startup")
     parser.add_argument("--jar", help="Use a specific runnable kernel jar.")
     parser.add_argument("--java", default="java", help="Java executable to launch.")
     parser.add_argument("--timeout-secs", type=float, default=3.0, help="Seconds the kernel must stay alive.")
@@ -61,7 +61,7 @@ def build_connection_payload() -> dict:
         "key": secrets.token_hex(16),
         "transport": "tcp",
         "signature_scheme": "hmac-sha256",
-        "kernel_name": "tafkir-selftest",
+        "kernel_name": "javaland-selftest",
     }
 
 
@@ -81,7 +81,7 @@ def build_kernel_command(base_dir: Path, jar_path: Path, java_bin: str) -> list[
     spec = render_kernel_spec(
         base_dir / "src" / "main" / "resources" / "kernel.json",
         jar_path.parent,
-        "Tafkir (Java 25 + AI/ML)",
+        "JavaLand (Java 25)",
     )
     argv = list(spec["argv"])
     argv[0] = java_bin
@@ -123,7 +123,7 @@ def probe_local_tcp_bind(attempts: int = 3) -> list[dict[str, str | int | bool]]
 
 
 def print_bind_failure_diagnosis(bind_failures: list[dict[str, object]], probe_results: list[dict[str, object]]) -> None:
-    print("❌ Tafkir kernel self-test exhausted random-port retries during ZMQ bind startup.")
+    print("❌ JavaLand kernel self-test exhausted random-port retries during ZMQ bind startup.")
     print(f"   bind failures: {len(bind_failures)}")
     for failure in bind_failures:
         print(
@@ -170,7 +170,7 @@ def main() -> int:
     command = build_kernel_command(base_dir, jar_path, args.java)
     bind_failures: list[dict[str, object]] = []
 
-    with tempfile.TemporaryDirectory(prefix="tafkir-jupyter-selftest-") as temp_dir:
+    with tempfile.TemporaryDirectory(prefix="javaland-jupyter-selftest-") as temp_dir:
         temp_path = Path(temp_dir)
         for attempt in range(1, args.retries + 1):
             connection_payload = build_connection_payload()
@@ -228,7 +228,7 @@ def main() -> int:
                     time.sleep(0.1)
                 else:
                     stdout, stderr = proc.communicate(timeout=0) if proc.poll() is not None else ("", "")
-                    print("✅ Tafkir kernel self-test passed")
+                    print("✅ JavaLand kernel self-test passed")
                     print(f"   kernel jar: {jar_path}")
                     print(f"   startup window: {args.timeout_secs:.1f}s")
                     print(f"   connection file: {connection_file}")

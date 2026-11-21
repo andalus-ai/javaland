@@ -7,7 +7,7 @@ BUILD_DIR="$SCRIPT_DIR/build/local-standalone"
 CLASSES_DIR="$BUILD_DIR/classes"
 STAGE_DIR="$BUILD_DIR/stage"
 LIB_DIR="$SCRIPT_DIR/build/libs"
-OUTPUT_JAR="$LIB_DIR/tafkir-kernel.jar"
+OUTPUT_JAR="$LIB_DIR/javaland-kernel.jar"
 M2_REPO="${TAFKIR_JUPYTER_MANUAL_M2_REPO:-$HOME/.m2/repository}"
 JAVAC_BIN="${JAVAC_BIN:-$(command -v javac || true)}"
 JAR_BIN="${JAR_BIN:-$(command -v jar || true)}"
@@ -79,7 +79,7 @@ main() {
   local compile_cp
   compile_cp="$jjava_jar"
 
-  echo "Compiling standalone Tafkir Jupyter kernel"
+  echo "Compiling standalone JavaLand Jupyter kernel"
   echo "  m2 repo: $M2_REPO"
   "$JAVAC_BIN" \
     --enable-preview \

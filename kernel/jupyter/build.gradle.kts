@@ -1,9 +1,9 @@
+import org.gradle.api.file.DuplicatesStrategy
+
 plugins {
     `java-library`
     `maven-publish`
 }
-
-import org.gradle.api.file.DuplicatesStrategy
 
 group = "tech.kayys.javaland"
 version = rootProject.version
@@ -20,11 +20,11 @@ repositories {
 }
 
 dependencies {
+    // JJava supplies the Jupyter protocol transport and JShell-backed evaluator.
     implementation("org.dflib.jjava:jjava:1.0-a4")
-    testImplementation("org.junit.jupiter:junit-jupiter")
-    testImplementation("tech.kayys.aljabr:aljabr-tensor:0.1.0-SNAPSHOT")
-    testImplementation("tech.kayys.aljabr:aljabr-core:0.1.0-SNAPSHOT")
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+
+    testImplementation("org.junit.jupiter:junit-jupiter:5.12.2")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.12.2")
 }
 
 tasks.test {

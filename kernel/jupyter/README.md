@@ -76,7 +76,7 @@ kernel class back into a registry plus documentation dump.
 ./rebuild_kernel.sh maven-diagnose
 
 # 7. Inspect the install plan
-cd tafkir/integration/jupyter/jupyter
+cd javaland/kernel/jupyter
 python3 install.py --dry-run
 
 # 8. Verify the launcher path before opening Jupyter
@@ -104,12 +104,12 @@ That avoids relying on global cache directories when the local environment or
 sandbox makes those unwritable.
 
 The Gradle path now has a dedicated `fatJar` task that writes a standalone
-`build/libs/tafkir-kernel.jar`, which is also one of the installer's preferred
+`build/libs/javaland-kernel.jar`, which is also one of the installer's preferred
 jar candidates.
 
 For environments where Gradle startup or Maven resolution is the real blocker,
 `build_local_standalone.sh` and `./rebuild_kernel.sh local-fat` can assemble a
-fresh `build/libs/tafkir-kernel.jar` directly from local source plus jars
+fresh `build/libs/javaland-kernel.jar` directly from local source plus jars
 already present in your Maven repository.
 
 By default, the Maven rebuild path prefers offline mode after seeding the local
@@ -134,9 +134,9 @@ home Maven repository versus only being absent from the local seeded cache, run:
 The installer resolves the runnable kernel jar from the standalone kernel
 module. It currently checks these paths in order:
 
-- `target/tafkir-kernel.jar`
-- `build/libs/tafkir-kernel.jar`
-- `target/original-tafkir-kernel.jar`
+- `target/javaland-kernel.jar`
+- `build/libs/javaland-kernel.jar`
+- `target/original-javaland-kernel.jar`
 - other `build/libs/*kernel*.jar` candidates
 
 For safety, the installer and self-test reject stale jars by default when the
@@ -146,13 +146,13 @@ Use `--allow-stale-jar` only when you intentionally want to test an older jar.
 If you built the jar somewhere else, override it explicitly:
 
 ```bash
-python3 install.py --user --jar /path/to/tafkir-kernel.jar
+python3 install.py --user --jar /path/to/javaland-kernel.jar
 ```
 
 You can run the same override through the startup self-test:
 
 ```bash
-python3 selftest.py --jar /path/to/tafkir-kernel.jar
+python3 selftest.py --jar /path/to/javaland-kernel.jar
 ```
 
 To inspect what Jupyter will actually launch, use:
@@ -184,7 +184,7 @@ python3 sync_active_install.py
 That helper:
 
 - targets the kernelspec Jupyter is actually resolving
-- refreshes the copied `tafkir-kernel.jar`
+- refreshes the copied `javaland-kernel.jar`
 - rewrites `kernel.json` to point at the copied install-directory jar
 - makes timestamped backups before replacing existing files
 
