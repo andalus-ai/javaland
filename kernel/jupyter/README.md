@@ -1,10 +1,8 @@
-# JavaLand Jupyter Kernel
+> **Migration note:** This kernel has moved from Javaland into [JavaLand](https://github.com/andalus-ai/javaland). The current code still contains legacy Javaland package names and optional AI/ML helpers; these are being separated into framework integrations. Run commands from `javaland/kernel/jupyter`.
 
-Run commands from `javaland/kernel/jupyter`.
+# javaland-kernel
 
-# JavaLand Jupyter Kernel
-
-Standalone Jupyter-compatible Java kernel powered by JShell.
+Standalone Jupyter kernel for the Javaland AI platform.
 
 Extends [JJava](https://github.com/dflib/jjava)'s `BaseKernel` (Jupyter wire
 protocol over ZMQ/JeroMQ) and executes notebook cells through JShell. There is
@@ -15,7 +13,7 @@ no IJava dependency and no separate server process.
 ```
 Jupyter ←──ZMQ──→ KernelLauncher
                        │
-                  JavaLandKernel (extends BaseKernel)
+                  JavalandKernel (extends BaseKernel)
                   ├── CodeEvaluator (JShell)
                   ├── CompletionProvider (JShell sourceCodeAnalysis)
                   ├── NotebookMagicDispatcher (exact/prefix magic routing)
@@ -46,10 +44,10 @@ Jupyter ←──ZMQ──→ KernelLauncher
                   ├── NotebookCharts (notebook SVG chart rendering)
                   ├── NotebookChartRenderer (line, scatter, and histogram preview envelopes)
                   ├── TensorDisplay (HTML heatmap rendering)
-                  └── Optional Java libraries on the kernel classpath
+                  └── Javaland ML libraries on the kernel classpath
 ```
 
-`JavaLandKernel` owns kernel lifecycle and runtime execution. Keep reusable
+`JavalandKernel` owns kernel lifecycle and runtime execution. Keep reusable
 routing, argument parsing, runtime option parsing, table/data option parsing, file/archive option parsing, catalog, preload, runtime preview rendering, dependency parsing and lookup, dependency preview rendering, delimited data
 loading, document rendering, document preview rendering, file utilities, file preview rendering, archive parsing, table parsing,
 archive preview rendering, table rendering, summary rendering, stats preview rendering, chart preview rendering, table operations, profiles, schema inference, numeric stats, chart rendering, and HTML
@@ -114,9 +112,8 @@ For environments where Gradle startup or Maven resolution is the real blocker,
 fresh `build/libs/javaland-kernel.jar` directly from local source plus jars
 already present in your Maven repository.
 
-By default, the Maven rebuild path prefers offline mode after seeding the local
-cache. Override that with `JAVALAND_JUPYTER_MAVEN_OFFLINE=false` if you explicitly
-want Maven to try network resolution.
+```java
+import tech.kayys.javaland.ml.nn.Linear;
 
 If the focused seed still misses parent POMs or plugin BOMs in your local
 offline cache, retry with:
@@ -126,8 +123,8 @@ JAVALAND_JUPYTER_SEED_MODE=full ./rebuild_kernel.sh seed-home-m2
 JAVALAND_JUPYTER_SEED_M2=true JAVALAND_JUPYTER_SEED_MODE=full ./rebuild_kernel.sh maven
 ```
 
-If you want the helper to tell you whether a missing artifact exists in your
-home Maven repository versus only being absent from the local seeded cache, run:
+The kernel now preloads a small default Javaland notebook import set, so a fresh
+session can use these symbols without a manual import cell:
 
 ```bash
 ./rebuild_kernel.sh maven-diagnose
@@ -153,9 +150,15 @@ python3 install.py --user --jar /path/to/javaland-kernel.jar
 
 You can run the same override through the startup self-test:
 
-```bash
-python3 selftest.py --jar /path/to/javaland-kernel.jar
-```
+- `javalandHelp()`
+- `javalandTensorDemo()`
+- `javalandPreviewTensorDemo()`
+- `javalandMetricsDemo()`
+- `javalandLossCurveDemo()`
+- `javalandImageDemo()`
+- `javalandAudioDemo()`
+- `javalandModelDemo()`
+- `javalandModelSummary()`
 
 To inspect what Jupyter will actually launch, use:
 
@@ -214,10 +217,15 @@ Cells run as plain Java snippets through JShell, so imports and variables work
 the way they do in a JShell session:
 
 ```java
-import tech.kayys.JavaLand.ml.nn.Linear;
-
-var layer = new Linear(8, 4);
-System.out.println(layer);
+javalandHelp();
+javalandTensorDemo().shape()[0];
+javalandPreviewTensorDemo();
+javalandMetricsDemo();
+javalandLossCurveDemo();
+javalandImageDemo();
+javalandAudioDemo();
+javalandModelDemo().size();
+javalandModelSummary();
 ```
 
 A fresh session starts with standard Java utility, filesystem, time, and math imports. ML framework APIs are not loaded by default; add the libraries and imports required by a notebook explicitly.
@@ -323,8 +331,8 @@ Example:
 %help %envfile
 %help %maven
 %reset
-%time javaLandMetricsDemo()
-%timeit -n 3 javaLandMetricsDemo()
+%time javalandLossCurveDemo()
+%timeit -n 3 javalandLossCurveDemo()
 %classpath
 %pwd
 %cd ..
@@ -334,7 +342,7 @@ Example:
 %cat README.md
 %head -n 5 README.md
 %tail -n 5 README.md
-%grep JavaLand README.md
+%grep Javaland README.md
 %findfile README .
 %wc README.md
 %diff baseline.yaml current.yaml
@@ -384,16 +392,16 @@ Example:
 %envfile .env
 %env PATH
 %addjar /absolute/path/to/local-lib.jar
-%maven org.apache.commons:commons-math3:3.6.1
+%maven tech.kayys.javaland:javaland-ml-autograd:0.1.0-SNAPSHOT
 %deps
-%whichclass java.util.ArrayList
+%whichclass tech.kayys.javaland.ml.autograd.GradTensor
 %maven --explain definitely.missing:artifact:0.0.1
 %maven --allow-remote definitely.missing:artifact:0.0.1
 %maven --allow-remote --fetch definitely.missing:artifact:0.0.1
 ```
 
 `%reset` clears notebook variables, declarations, and dynamic dependency loads
-from `%addjar` / `%maven`, then reloads the standard Java imports
+from `%addjar` / `%maven`, then reloads the default Javaland imports and helpers
 into a fresh JShell session.
 
 `%cd <PATH>` changes the notebook working directory used by `%pwd` and `%ls`.
