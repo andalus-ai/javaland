@@ -54,7 +54,7 @@ public final class JupyterExecutionMessageHandler implements JupyterMessageHandl
         String code = stringValue(content.get("code"), "");
         boolean silent = booleanValue(content.get("silent"), false);
         boolean storeHistory = booleanValue(content.get("store_history"), true);
-        int nextCount = storeHistory ? ++executionCount : executionCount;
+        int nextCount = storeHistory && !silent ? ++executionCount : executionCount;
 
         List<JupyterOutboundMessage> outbound = new ArrayList<>();
         outbound.add(iopub(inbound, "status", Map.of("execution_state", "busy")));
