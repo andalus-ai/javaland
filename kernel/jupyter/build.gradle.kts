@@ -6,7 +6,7 @@ plugins {
 }
 
 
-group = "tech.kayys.tafkir"
+group = "tech.kayys.javaland"
 version = "0.1.0-SNAPSHOT"
 
 java {
@@ -22,10 +22,10 @@ repositories {
 
 dependencies {
     implementation(group = "org.dflib.jjava", name = "jjava", version = "1.0-a4")
-    // The kernel itself only needs Tafkir ML jars at runtime so notebook
+    // The kernel itself only needs Javaland ML jars at runtime so notebook
     // snippets can import them; source compilation uses reflection.
     runtimeOnly("tech.kayys.aljabr:aljabr-tensor:0.1.0-SNAPSHOT")
-    runtimeOnly(project(":ml:tafkir-ml-autograd"))
+    runtimeOnly(project(":ml:javaland-ml-autograd"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testImplementation("tech.kayys.aljabr:aljabr-tensor:0.1.0-SNAPSHOT")
     testImplementation("tech.kayys.aljabr:aljabr-core:0.1.0-SNAPSHOT")
@@ -41,8 +41,8 @@ tasks.jar {
     manifest {
         attributes(
             mapOf(
-                "Main-Class" to "tech.kayys.tafkir.jupyter.KernelLauncher",
-                "Automatic-Module-Name" to "tech.kayys.tafkir.jupyter.kernel"
+                "Main-Class" to "tech.kayys.javaland.jupyter.KernelLauncher",
+                "Automatic-Module-Name" to "tech.kayys.javaland.jupyter.kernel"
             )
         )
     }
@@ -50,16 +50,16 @@ tasks.jar {
 
 val fatJar by tasks.registering(Jar::class) {
     group = "build"
-    description = "Assemble a runnable standalone Tafkir Jupyter kernel jar."
-    archiveBaseName.set("tafkir-kernel")
+    description = "Assemble a runnable standalone Javaland Jupyter kernel jar."
+    archiveBaseName.set("javaland-kernel")
     archiveClassifier.set("")
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 
     manifest {
         attributes(
             mapOf(
-                "Main-Class" to "tech.kayys.tafkir.jupyter.KernelLauncher",
-                "Automatic-Module-Name" to "tech.kayys.tafkir.jupyter.kernel"
+                "Main-Class" to "tech.kayys.javaland.jupyter.KernelLauncher",
+                "Automatic-Module-Name" to "tech.kayys.javaland.jupyter.kernel"
             )
         )
     }

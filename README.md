@@ -19,7 +19,7 @@ It provides a Jupyter-compatible Java kernel built around the modern JDK JShell 
 | --- | --- | --- |
 | [Aljabr](https://github.com/andalus-ai/aljabr) | Tensor, ML and compute foundation | Optional tensor/model display and compute inspection |
 | [AQLI](https://github.com/andalus-ai/aqli) | Inference and serving runtime | Optional model inference and runtime inspection |
-| [Tafkir](https://github.com/andalus-ai/tafkir) | Training and adaptation | Optional training, dataset, evaluation and experiment workflows |
+| [Tafkir](https://github.com/andalus-ai/javaland) | Training and adaptation | Optional training, dataset, evaluation and experiment workflows |
 
 JavaLand must not own or duplicate any of these projects' domain logic.
 

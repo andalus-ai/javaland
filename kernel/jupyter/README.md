@@ -1,8 +1,8 @@
-> **Migration note:** This kernel has moved from Tafkir into [JavaLand](https://github.com/andalus-ai/javaland). The current code still contains legacy Tafkir package names and optional AI/ML helpers; these are being separated into framework integrations. Run commands from `javaland/kernel/jupyter`.
+> **Migration note:** This kernel has moved from Javaland into [JavaLand](https://github.com/andalus-ai/javaland). The current code still contains legacy Javaland package names and optional AI/ML helpers; these are being separated into framework integrations. Run commands from `javaland/kernel/jupyter`.
 
-# tafkir-kernel
+# javaland-kernel
 
-Standalone Jupyter kernel for the Tafkir AI platform.
+Standalone Jupyter kernel for the Javaland AI platform.
 
 Extends [JJava](https://github.com/dflib/jjava)'s `BaseKernel` (Jupyter wire
 protocol over ZMQ/JeroMQ) and executes notebook cells through JShell. There is
@@ -13,7 +13,7 @@ no IJava dependency and no separate server process.
 ```
 Jupyter ←──ZMQ──→ KernelLauncher
                        │
-                  TafkirKernel (extends BaseKernel)
+                  JavalandKernel (extends BaseKernel)
                   ├── CodeEvaluator (JShell)
                   ├── CompletionProvider (JShell sourceCodeAnalysis)
                   ├── NotebookMagicDispatcher (exact/prefix magic routing)
@@ -44,10 +44,10 @@ Jupyter ←──ZMQ──→ KernelLauncher
                   ├── NotebookCharts (notebook SVG chart rendering)
                   ├── NotebookChartRenderer (line, scatter, and histogram preview envelopes)
                   ├── TensorDisplay (HTML heatmap rendering)
-                  └── Tafkir ML libraries on the kernel classpath
+                  └── Javaland ML libraries on the kernel classpath
 ```
 
-`TafkirKernel` owns kernel lifecycle and runtime execution. Keep reusable
+`JavalandKernel` owns kernel lifecycle and runtime execution. Keep reusable
 routing, argument parsing, runtime option parsing, table/data option parsing, file/archive option parsing, catalog, preload, runtime preview rendering, dependency parsing and lookup, dependency preview rendering, delimited data
 loading, document rendering, document preview rendering, file utilities, file preview rendering, archive parsing, table parsing,
 archive preview rendering, table rendering, summary rendering, stats preview rendering, chart preview rendering, table operations, profiles, schema inference, numeric stats, chart rendering, and HTML
@@ -98,13 +98,13 @@ Cells run as plain Java snippets through JShell, so imports and variables work
 the way they do in a JShell session:
 
 ```java
-import tech.kayys.tafkir.ml.nn.Linear;
+import tech.kayys.javaland.ml.nn.Linear;
 
 var layer = new Linear(8, 4);
 System.out.println(layer);
 ```
 
-The kernel now preloads a small default Tafkir notebook import set, so a fresh
+The kernel now preloads a small default Javaland notebook import set, so a fresh
 session can use these symbols without a manual import cell:
 
 - `GradTensor`
@@ -121,28 +121,28 @@ new Sequential(new Linear(2, 3), new ReLU()).size();
 
 The kernel also preloads a few tiny startup helpers for the first notebook cell:
 
-- `tafkirHelp()`
-- `tafkirTensorDemo()`
-- `tafkirPreviewTensorDemo()`
-- `tafkirMetricsDemo()`
-- `tafkirLossCurveDemo()`
-- `tafkirImageDemo()`
-- `tafkirAudioDemo()`
-- `tafkirModelDemo()`
-- `tafkirModelSummary()`
+- `javalandHelp()`
+- `javalandTensorDemo()`
+- `javalandPreviewTensorDemo()`
+- `javalandMetricsDemo()`
+- `javalandLossCurveDemo()`
+- `javalandImageDemo()`
+- `javalandAudioDemo()`
+- `javalandModelDemo()`
+- `javalandModelSummary()`
 
 Example:
 
 ```java
-tafkirHelp();
-tafkirTensorDemo().shape()[0];
-tafkirPreviewTensorDemo();
-tafkirMetricsDemo();
-tafkirLossCurveDemo();
-tafkirImageDemo();
-tafkirAudioDemo();
-tafkirModelDemo().size();
-tafkirModelSummary();
+javalandHelp();
+javalandTensorDemo().shape()[0];
+javalandPreviewTensorDemo();
+javalandMetricsDemo();
+javalandLossCurveDemo();
+javalandImageDemo();
+javalandAudioDemo();
+javalandModelDemo().size();
+javalandModelSummary();
 ```
 
 The kernel also supports a small starter magic layer:
@@ -246,8 +246,8 @@ Example:
 %help %envfile
 %help %maven
 %reset
-%time tafkirLossCurveDemo()
-%timeit -n 3 tafkirLossCurveDemo()
+%time javalandLossCurveDemo()
+%timeit -n 3 javalandLossCurveDemo()
 %classpath
 %pwd
 %cd ..
@@ -257,7 +257,7 @@ Example:
 %cat README.md
 %head -n 5 README.md
 %tail -n 5 README.md
-%grep Tafkir README.md
+%grep Javaland README.md
 %findfile README .
 %wc README.md
 %diff baseline.yaml current.yaml
@@ -307,16 +307,16 @@ Example:
 %envfile .env
 %env PATH
 %addjar /absolute/path/to/local-lib.jar
-%maven tech.kayys.tafkir:tafkir-ml-autograd:0.1.0-SNAPSHOT
+%maven tech.kayys.javaland:javaland-ml-autograd:0.1.0-SNAPSHOT
 %deps
-%whichclass tech.kayys.tafkir.ml.autograd.GradTensor
+%whichclass tech.kayys.javaland.ml.autograd.GradTensor
 %maven --explain definitely.missing:artifact:0.0.1
 %maven --allow-remote definitely.missing:artifact:0.0.1
 %maven --allow-remote --fetch definitely.missing:artifact:0.0.1
 ```
 
 `%reset` clears notebook variables, declarations, and dynamic dependency loads
-from `%addjar` / `%maven`, then reloads the default Tafkir imports and helpers
+from `%addjar` / `%maven`, then reloads the default Javaland imports and helpers
 into a fresh JShell session.
 
 `%cd <PATH>` changes the notebook working directory used by `%pwd` and `%ls`.
