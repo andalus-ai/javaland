@@ -18,16 +18,12 @@ repositories {
 }
 
 dependencies {
-    // Temporary evaluator implementation; this module has no dependency on the Jupyter kernel.
-    implementation("org.dflib.jjava:jjava:1.0-a4")
-
     testImplementation("org.junit.jupiter:junit-jupiter:5.12.2")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.12.2")
 }
 
 tasks.test {
     useJUnitPlatform()
-    jvmArgs("--add-opens=jdk.jshell/jdk.jshell=ALL-UNNAMED")
 }
 
 tasks.jar {
