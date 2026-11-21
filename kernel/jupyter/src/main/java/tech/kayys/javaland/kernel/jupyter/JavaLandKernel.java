@@ -145,8 +145,6 @@ import tech.kayys.javaland.kernel.jupyter.NotebookTableMagicOptions.SortOptions;
 import tech.kayys.javaland.kernel.jupyter.NotebookTableMagicOptions.TableOptions;
 import tech.kayys.javaland.kernel.jupyter.NotebookTableMagicOptions.ValueCountsOptions;
 
-import org.dflib.jjava.execution.CodeEvaluator;
-import org.dflib.jjava.execution.CodeEvaluatorBuilder;
 import org.dflib.jjava.jupyter.kernel.BaseKernel;
 import org.dflib.jjava.jupyter.kernel.LanguageInfo;
 import org.dflib.jjava.jupyter.kernel.ReplacementOptions;
@@ -160,6 +158,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+
+import tech.kayys.javaland.runtime.JavaExecutionSession;
 
 public class JavaLandKernel extends BaseKernel {
 
@@ -177,7 +177,7 @@ public class JavaLandKernel extends BaseKernel {
             .codemirror("java")
             .build();
 
-    private CodeEvaluator evaluator;
+    private JavaExecutionSession session;
     private CompletionProvider completer;
     private final Set<String> dynamicClasspathEntries;
     private final NotebookMagicDispatcher magicDispatcher;
@@ -187,7 +187,7 @@ public class JavaLandKernel extends BaseKernel {
         this.dynamicClasspathEntries = new LinkedHashSet<>();
         this.magicDispatcher = createMagicDispatcher();
         this.currentDirectory = Path.of("").toAbsolutePath().normalize();
-        reinitializeEvaluator();
+        reinitializeSession();
     }
 
     @Override
@@ -196,7 +196,7 @@ public class JavaLandKernel extends BaseKernel {
         if (magic != null) {
             return magic;
         }
-        Object result = evaluator.eval(code);
+        Object result = session.eval(code);
         if (result == null) return DisplayData.EMPTY;
         DisplayData rich = TensorDisplay.render(result, getRenderer());
         return rich != null ? rich : new DisplayData(result.toString());
@@ -208,13 +208,13 @@ public class JavaLandKernel extends BaseKernel {
     }
 
     @Override
-    public String isComplete(String code) { return evaluator.isComplete(code); }
+    public String isComplete(String code) { return session.isComplete(code); }
 
     @Override
-    public void interrupt() { evaluator.interrupt(); }
+    public void interrupt() { session.interrupt(); }
 
     @Override
-    public void onShutdown(boolean restart) { evaluator.shutdown(); }
+    public void onShutdown(boolean restart) { session.close(); }
 
     @Override
     public LanguageInfo getLanguageInfo() { return LANGUAGE_INFO; }
@@ -301,30 +301,22 @@ public class JavaLandKernel extends BaseKernel {
                 .prefix("%time", this::renderTimedEval);
     }
 
-    private void reinitializeEvaluator() {
-        this.evaluator = new CodeEvaluatorBuilder()
-                .sysStdout().sysStderr().sysStdin()
-                .compilerOpts(
-                        "--enable-preview",
-                        "--source", Integer.toString(Runtime.version().feature()),
-                        "--add-modules=jdk.incubator.vector"
-                )
-                .startupScript(NotebookStartupScripts.defaultScript())
-                .build();
-        this.completer = new CompletionProvider(evaluator.getShell());
+    private void reinitializeSession() {
+        this.session = JavaExecutionSession.create();
+        this.completer = new CompletionProvider(session.shell());
     }
 
     private DisplayData renderReset() {
-        evaluator.shutdown();
+        session.close();
         dynamicClasspathEntries.clear();
-        reinitializeEvaluator();
+        reinitializeSession();
 
         return displayPreview(resetPreview());
     }
 
     private DisplayData renderTimedEval(String expr) throws Exception {
         long started = System.nanoTime();
-        Object result = evaluator.eval(expr);
+        Object result = session.eval(expr);
         double elapsedMs = (System.nanoTime() - started) / 1_000_000.0;
         String timing = String.format(java.util.Locale.ROOT, "elapsedMs=%.3f", elapsedMs);
 
@@ -346,7 +338,7 @@ public class JavaLandKernel extends BaseKernel {
         Object lastResult = null;
         for (int i = 0; i < options.runs(); i++) {
             long started = System.nanoTime();
-            lastResult = evaluator.eval(options.expression());
+            lastResult = session.eval(options.expression());
             double elapsedMs = (System.nanoTime() - started) / 1_000_000.0;
             minMs = Math.min(minMs, elapsedMs);
             maxMs = Math.max(maxMs, elapsedMs);
@@ -422,7 +414,7 @@ public class JavaLandKernel extends BaseKernel {
     }
 
     private void addJarToClasspath(Path jar) {
-        evaluator.getShell().addToClasspath(jar.toString());
+        session.addToClasspath(jar.toString());
         dynamicClasspathEntries.add(jar.toString());
     }
 
@@ -1749,7 +1741,7 @@ public class JavaLandKernel extends BaseKernel {
             return new DisplayData("Usage: %whichclass <fully.qualified.ClassName>");
         }
         try {
-            Object locationResult = evaluator.eval(className + ".class.getProtectionDomain().getCodeSource() == null"
+            Object locationResult = session.eval(className + ".class.getProtectionDomain().getCodeSource() == null"
                     + " ? \"<unknown>\""
                     + " : " + className + ".class.getProtectionDomain().getCodeSource().getLocation().toURI().getPath()");
             String location = locationResult == null ? "<unknown>" : locationResult.toString();
