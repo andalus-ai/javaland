@@ -28,6 +28,29 @@ class JupyterExecutionMessageHandlerTest {
     }
 
     @Test
+    void handlesInterruptRequestsOnControlChannel() throws Exception {
+        try (var handler = new JupyterExecutionMessageHandler(JavaExecutionSession.create())) {
+            var responses = handler.handle(inbound(JupyterZmqChannel.CONTROL,
+                    "interrupt_request", Map.of()));
+            assertEquals(1, responses.size());
+            var response = responses.getFirst();
+            assertEquals(JupyterZmqChannel.CONTROL, response.channel());
+            assertEquals("interrupt_reply", response.message().header().messageType());
+            assertEquals("request-1", response.message().parentHeader().get("msg_id"));
+            assertArrayEquals(new byte[]{1}, response.identities().getFirst());
+            assertTrue(response.message().content().isEmpty());
+        }
+    }
+
+    @Test
+    void ignoresNonInterruptControlMessages() throws Exception {
+        try (var handler = new JupyterExecutionMessageHandler(JavaExecutionSession.create())) {
+            assertTrue(handler.handle(inbound(JupyterZmqChannel.CONTROL,
+                    "kernel_info_request", Map.of())).isEmpty());
+        }
+    }
+
+    @Test
     void reportsCompleteSource() throws Exception {
         try (var handler = new JupyterExecutionMessageHandler(JavaExecutionSession.create())) {
             var responses = handler.handle(inbound("is_complete_request",
@@ -101,9 +124,14 @@ class JupyterExecutionMessageHandlerTest {
     }
 
     private static JupyterInboundMessage inbound(String type, Map<String, Object> content) {
+        return inbound(JupyterZmqChannel.SHELL, type, content);
+    }
+
+    private static JupyterInboundMessage inbound(
+            JupyterZmqChannel channel, String type, Map<String, Object> content) {
         var header = new JupyterMessageHeader(
                 "request-1", "test-user", "request-session", Instant.now().toString(), type, "5.3");
-        return new JupyterInboundMessage(JupyterZmqChannel.SHELL, List.of(new byte[]{1}),
+        return new JupyterInboundMessage(channel, List.of(new byte[]{1}),
                 new JupyterMessage(header, Map.of(), Map.of(), content));
     }
 }
