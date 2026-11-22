@@ -7,17 +7,18 @@ Jupyter wire protocol.
 - Owns JeroMQ context and socket lifecycle.
 - Preserves ROUTER identities, the `<IDS|MSG>` delimiter, signed JSON frames,
   and trailing binary buffers.
-- Exposes raw heartbeat receive/reply operations.
+- Multiplexes inbound readiness across all five channels with a context-owned
+  JeroMQ poller.
 
-It depends on `:protocol:jupyter` for connection settings and serialized
-messages. It does not depend on the kernel dispatcher or JShell runtime.
+The poller reports ready channels only. It does not decode, dispatch, or execute
+messages; those responsibilities belong to the kernel coordinator.
 
 ## Migration boundary
 
-This is the transport foundation, not yet the complete kernel event loop.
-Polling, dispatch, execution scheduling, IOPub publication policy, and
-coordinated shutdown will be added in the kernel integration stage. The
-current launcher continues to use JJava until that integration is ready.
+The transport is not yet wired into the kernel launcher. Polling and channel
+readiness are now available as a foundation for the next kernel integration
+slice. The current launcher continues to use JJava until that integration
+preserves existing kernel behavior.
 
 ## Build
 

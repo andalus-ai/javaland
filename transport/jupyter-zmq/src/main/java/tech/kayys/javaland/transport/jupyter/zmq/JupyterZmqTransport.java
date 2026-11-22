@@ -8,15 +8,13 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
-/**
- * Owns the five Jupyter ZeroMQ sockets and their endpoint lifecycle.
- * Polling, kernel dispatch and execution scheduling are intentionally layered above this class.
- */
 public final class JupyterZmqTransport implements AutoCloseable {
     private final ZContext context;
     private final Map<JupyterZmqChannel, ZMQ.Socket> sockets = new EnumMap<>(JupyterZmqChannel.class);
     private final JupyterMultipartCodec codec = new JupyterMultipartCodec();
+    private JupyterZmqPoller poller;
     private boolean closed;
 
     private JupyterZmqTransport(JupyterConnectionConfig config) {
@@ -33,6 +31,7 @@ public final class JupyterZmqTransport implements AutoCloseable {
                 }
                 sockets.put(channel, socket);
             }
+            poller = new JupyterZmqPoller(context, sockets);
         } catch (RuntimeException failure) {
             close();
             throw failure;
@@ -41,6 +40,12 @@ public final class JupyterZmqTransport implements AutoCloseable {
 
     public static JupyterZmqTransport bind(JupyterConnectionConfig config) {
         return new JupyterZmqTransport(Objects.requireNonNull(config, "config must not be null"));
+    }
+
+    /** Waits for inbound activity and returns every channel readable in this poll cycle. */
+    public Set<JupyterZmqChannel> poll(long timeoutMillis) {
+        ensureOpen();
+        return poller.poll(timeoutMillis);
     }
 
     public JupyterWireMessage receive(JupyterZmqChannel channel) {
@@ -85,7 +90,12 @@ public final class JupyterZmqTransport implements AutoCloseable {
     }
 
     @Override public void close() {
-        if (!closed) { closed = true; context.close(); sockets.clear(); }
+        if (!closed) {
+            closed = true;
+            if (poller != null) poller.close();
+            context.close();
+            sockets.clear();
+        }
     }
 
     private List<byte[]> receiveFrames(ZMQ.Socket socket) {
