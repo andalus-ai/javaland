@@ -28,6 +28,37 @@ class JupyterExecutionMessageHandlerTest {
     }
 
     @Test
+    void reportsCompleteSource() throws Exception {
+        try (var handler = new JupyterExecutionMessageHandler(JavaExecutionSession.create())) {
+            var responses = handler.handle(inbound("is_complete_request",
+                    Map.of("code", "int answer = 42;")));
+            assertEquals(1, responses.size());
+            var response = responses.getFirst();
+            assertEquals("is_complete_reply", response.message().header().messageType());
+            assertEquals(Map.of("status", "complete"), response.message().content());
+        }
+    }
+
+    @Test
+    void reportsIncompleteSourceWithContinuationIndent() throws Exception {
+        try (var handler = new JupyterExecutionMessageHandler(JavaExecutionSession.create())) {
+            var responses = handler.handle(inbound("is_complete_request",
+                    Map.of("code", "if (true) {")));
+            assertEquals(1, responses.size());
+            assertEquals(Map.of("status", "incomplete", "indent", "    "),
+                    responses.getFirst().message().content());
+        }
+    }
+
+    @Test
+    void treatsMissingCodeAsCompleteEmptyInput() throws Exception {
+        try (var handler = new JupyterExecutionMessageHandler(JavaExecutionSession.create())) {
+            var responses = handler.handle(inbound("is_complete_request", Map.of()));
+            assertEquals(Map.of("status", "complete"), responses.getFirst().message().content());
+        }
+    }
+
+    @Test
     void completesAgainstPersistentSessionAndReturnsJupyterOffsets() throws Exception {
         try (var handler = new JupyterExecutionMessageHandler(JavaExecutionSession.create())) {
             handler.handle(inbound("execute_request", Map.of(
