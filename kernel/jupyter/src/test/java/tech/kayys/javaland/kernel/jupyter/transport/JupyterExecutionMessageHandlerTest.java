@@ -161,13 +161,15 @@ class JupyterExecutionMessageHandlerTest {
             assertEquals("idle", shellResponses.get().getLast().message().content()
                     .get("execution_state"));
             assertTrue(responseTypes.contains("execute_reply"));
-            assertEquals("42", handler.handle(inbound("execute_request",
-                    Map.of("code", "6 * 7", "silent", true, "store_history", false)))
-                    .stream()
+
+            var followUp = handler.handle(inbound("execute_request",
+                    Map.of("code", "6 * 7", "silent", false, "store_history", false)));
+            var result = followUp.stream()
                     .filter(response -> response.message().header().messageType()
-                            .equals("execute_reply"))
-                    .findFirst().orElseThrow().message().content().get("execution_count") == null
-                    ? "42" : "42");
+                            .equals("execute_result"))
+                    .findFirst().orElseThrow();
+            assertEquals("42", ((Map<?, ?>) result.message().content().get("data"))
+                    .get("text/plain"));
         } finally {
             System.clearProperty(marker);
         }
