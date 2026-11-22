@@ -113,6 +113,7 @@ public final class JupyterKernelCoordinator implements AutoCloseable {
             } catch (Exception failure) {
                 if (!closed.get()) {
                     workerFailure.compareAndSet(null, failure);
+                    shellWorker.complete();
                 }
             }
         });
@@ -132,7 +133,11 @@ public final class JupyterKernelCoordinator implements AutoCloseable {
     private void sendCompletedResponses() {
         List<JupyterOutboundMessage> responses;
         while (!closed.get() && (responses = completedResponses.poll()) != null) {
-            sendResponses(responses);
+            try {
+                sendResponses(responses);
+            } finally {
+                shellWorker.complete();
+            }
         }
     }
 
