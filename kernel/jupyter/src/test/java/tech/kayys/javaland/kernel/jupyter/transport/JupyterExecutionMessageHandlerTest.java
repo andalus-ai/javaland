@@ -112,6 +112,68 @@ class JupyterExecutionMessageHandlerTest {
     }
 
     @Test
+    void controlInterruptStopsConcurrentShellExecutionAndReturnsToIdle() throws Exception {
+        String marker = "javaland.jupyter.handler.interrupt.started";
+        System.clearProperty(marker);
+        try (var handler = new JupyterExecutionMessageHandler(JavaExecutionSession.create())) {
+            java.util.concurrent.atomic.AtomicReference<List<JupyterOutboundMessage>> shellResponses =
+                    new java.util.concurrent.atomic.AtomicReference<>();
+            java.util.concurrent.atomic.AtomicReference<Throwable> shellFailure =
+                    new java.util.concurrent.atomic.AtomicReference<>();
+            java.util.concurrent.CountDownLatch shellFinished =
+                    new java.util.concurrent.CountDownLatch(1);
+            Thread shellWorker = new Thread(() -> {
+                try {
+                    shellResponses.set(handler.handle(inbound("execute_request", Map.of(
+                            "code", "System.setProperty(\"" + marker
+                                    + "\", \"true\"); while (true) { Thread.yield(); }",
+                            "silent", false, "store_history", true))));
+                } catch (Throwable failure) {
+                    shellFailure.set(failure);
+                } finally {
+                    shellFinished.countDown();
+                }
+            }, "javaland-jupyter-handler-interrupt-test");
+            shellWorker.setDaemon(true);
+            shellWorker.start();
+
+            long deadline = System.nanoTime()
+                    + java.util.concurrent.TimeUnit.SECONDS.toNanos(5);
+            while (!"true".equals(System.getProperty(marker))
+                    && System.nanoTime() < deadline && shellWorker.isAlive()) {
+                Thread.sleep(10);
+            }
+            assertEquals("true", System.getProperty(marker),
+                    "the Shell request should reach its long-running snippet");
+
+            var controlResponses = handler.handle(inbound(JupyterZmqChannel.CONTROL,
+                    "interrupt_request", Map.of()));
+            assertEquals(1, controlResponses.size());
+            assertEquals("interrupt_reply",
+                    controlResponses.getFirst().message().header().messageType());
+
+            assertTrue(shellFinished.await(5, java.util.concurrent.TimeUnit.SECONDS),
+                    "the Control request should interrupt the active Shell request");
+            assertNull(shellFailure.get());
+            List<String> responseTypes = shellResponses.get().stream()
+                    .map(response -> response.message().header().messageType()).toList();
+            assertEquals("status", responseTypes.getLast());
+            assertEquals("idle", shellResponses.get().getLast().message().content()
+                    .get("execution_state"));
+            assertTrue(responseTypes.contains("execute_reply"));
+            assertEquals("42", handler.handle(inbound("execute_request",
+                    Map.of("code", "6 * 7", "silent", true, "store_history", false)))
+                    .stream()
+                    .filter(response -> response.message().header().messageType()
+                            .equals("execute_reply"))
+                    .findFirst().orElseThrow().message().content().get("execution_count") == null
+                    ? "42" : "42");
+        } finally {
+            System.clearProperty(marker);
+        }
+    }
+
+    @Test
     void executesExpressionAndPublishesResultBetweenBusyAndIdle() throws Exception {
         try (var handler = new JupyterExecutionMessageHandler(JavaExecutionSession.create())) {
             var responses = handler.handle(inbound("execute_request",
