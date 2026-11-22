@@ -86,6 +86,47 @@ class JavaExecutionSessionTest {
     }
 
     @Test
+    void interruptStopsRunningEvaluationAndLeavesSessionUsable() throws Exception {
+        String marker = "javaland.interrupt.test.started";
+        System.clearProperty(marker);
+        try (JavaExecutionSession session = JavaExecutionSession.create()) {
+            java.util.concurrent.atomic.AtomicReference<Throwable> failure =
+                    new java.util.concurrent.atomic.AtomicReference<>();
+            java.util.concurrent.CountDownLatch finished = new java.util.concurrent.CountDownLatch(1);
+            Thread evaluator = new Thread(() -> {
+                try {
+                    session.eval("System.setProperty(\"" + marker
+                            + "\", \"true\"); while (true) { Thread.yield(); }");
+                } catch (Throwable thrown) {
+                    failure.set(thrown);
+                } finally {
+                    finished.countDown();
+                }
+            }, "javaland-jshell-interrupt-test");
+            evaluator.setDaemon(true);
+            evaluator.start();
+
+            long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(5);
+            while (!"true".equals(System.getProperty(marker))
+                    && System.nanoTime() < deadline && evaluator.isAlive()) {
+                Thread.sleep(10);
+            }
+            assertEquals("true", System.getProperty(marker),
+                    "the JShell evaluation should enter the long-running snippet");
+
+            session.interrupt();
+
+            assertTrue(finished.await(5, java.util.concurrent.TimeUnit.SECONDS),
+                    "interrupt should stop the active JShell evaluation");
+            assertNull(failure.get(), "stopping an evaluation should not corrupt the session");
+            assertEquals("42", session.eval("6 * 7"),
+                    "the session should accept a new evaluation after interruption");
+        } finally {
+            System.clearProperty(marker);
+        }
+    }
+
+    @Test
     void closeIsIdempotentAndRejectsFurtherUse() {
         JavaExecutionSession session = JavaExecutionSession.create();
         session.close();

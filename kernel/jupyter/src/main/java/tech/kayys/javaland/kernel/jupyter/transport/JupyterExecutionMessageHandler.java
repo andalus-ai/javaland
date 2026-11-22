@@ -33,6 +33,12 @@ public final class JupyterExecutionMessageHandler implements JupyterMessageHandl
     @Override
     public List<JupyterOutboundMessage> handle(JupyterInboundMessage inbound) throws Exception {
         Objects.requireNonNull(inbound, "inbound must not be null");
+        if (inbound.channel() == JupyterZmqChannel.CONTROL) {
+            return switch (inbound.message().header().messageType()) {
+                case "interrupt_request" -> interrupt(inbound);
+                default -> List.of();
+            };
+        }
         if (inbound.channel() != JupyterZmqChannel.SHELL) {
             return List.of();
         }
@@ -44,6 +50,12 @@ public final class JupyterExecutionMessageHandler implements JupyterMessageHandl
             case "is_complete_request" -> isComplete(inbound);
             default -> List.of();
         };
+    }
+
+    private List<JupyterOutboundMessage> interrupt(JupyterInboundMessage inbound) {
+        execution.interrupt();
+        return List.of(outbound(inbound, JupyterZmqChannel.CONTROL, inbound.identities(),
+                "interrupt_reply", Map.of()));
     }
 
     private List<JupyterOutboundMessage> isComplete(JupyterInboundMessage inbound) {
