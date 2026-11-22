@@ -110,9 +110,12 @@ public final class JupyterKernelCoordinator implements AutoCloseable {
                 if (!closed.get() && !completedResponses.offer(List.copyOf(responses))) {
                     throw new IllegalStateException("Jupyter completed-response queue is full");
                 }
-            } catch (Exception failure) {
+            } catch (Throwable failure) {
                 if (!closed.get()) {
-                    workerFailure.compareAndSet(null, failure);
+                    Exception reported = failure instanceof Exception exception
+                            ? exception
+                            : new IllegalStateException("Jupyter Shell worker failed", failure);
+                    workerFailure.compareAndSet(null, reported);
                     shellWorker.complete();
                 }
             }
