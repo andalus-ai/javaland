@@ -3,6 +3,7 @@ package tech.kayys.javaland.runtime;
 import jdk.jshell.JShell;
 import jdk.jshell.Snippet;
 import jdk.jshell.SnippetEvent;
+import jdk.jshell.SourceCodeAnalysis;
 
 import java.util.List;
 import java.util.Objects;
@@ -62,14 +63,44 @@ public final class JavaExecutionSession implements AutoCloseable {
         return evaluateSource(source);
     }
 
-    /**
-     * Returns the Jupyter completeness token for the supplied source:
-     * {@code complete} or {@code incomplete}.
-     */
+    /** Returns the Jupyter completeness token for the supplied source. */
     public synchronized String isComplete(String source) {
         ensureOpen();
         Objects.requireNonNull(source, "source must not be null");
         return isSourceComplete(source) ? "complete" : "incomplete";
+    }
+
+    /**
+     * Computes context-aware completions against the current persistent JShell state.
+     *
+     * @param source source text up to the editor cursor
+     * @param cursor cursor offset in Java UTF-16 code units
+     * @return replacement start offset and candidate continuations
+     */
+    public synchronized CompletionResult complete(String source, int cursor) {
+        ensureOpen();
+        Objects.requireNonNull(source, "source must not be null");
+        if (cursor < 0 || cursor > source.length()) {
+            throw new IllegalArgumentException("cursor must be between 0 and source length");
+        }
+        int[] anchor = new int[1];
+        List<String> matches = shell.sourceCodeAnalysis()
+                .completionSuggestions(source, cursor, anchor)
+                .stream()
+                .map(SourceCodeAnalysis.Suggestion::continuation)
+                .distinct()
+                .toList();
+        return new CompletionResult(anchor[0], matches);
+    }
+
+    /** Result of a context-aware source completion query. */
+    public record CompletionResult(int cursorStart, List<String> matches) {
+        public CompletionResult {
+            if (cursorStart < 0) {
+                throw new IllegalArgumentException("cursorStart must not be negative");
+            }
+            matches = List.copyOf(Objects.requireNonNull(matches, "matches must not be null"));
+        }
     }
 
     /** Attempts to stop user code currently executing in this session. */
@@ -80,7 +111,7 @@ public final class JavaExecutionSession implements AutoCloseable {
     }
 
     /**
-     * Exposes the JDK JShell instance for editor integrations such as completion.
+     * Exposes the JDK JShell instance for advanced integrations.
      * Callers must not access it concurrently with session operations.
      */
     public synchronized JShell shell() {
@@ -104,7 +135,6 @@ public final class JavaExecutionSession implements AutoCloseable {
     @Override
     public void close() {
         if (closed.compareAndSet(false, true)) {
-            // Stop first so close does not wait indefinitely for a running user snippet.
             shell.stop();
             synchronized (this) {
                 shell.close();
@@ -139,7 +169,6 @@ public final class JavaExecutionSession implements AutoCloseable {
                 if (event.exception() != null) {
                     throw new IllegalStateException("Java snippet execution failed", event.exception());
                 }
-                // Jupyter cells display expression results, not variable initializers.
                 if (event.snippet().kind() == Snippet.Kind.EXPRESSION && event.value() != null) {
                     lastValue = event.value();
                 }
