@@ -30,6 +30,10 @@ class JupyterShellRequestSchedulerTest {
 
             release.countDown();
             assertTrue(secondFinished.await(5, TimeUnit.SECONDS));
+            assertFalse(scheduler.hasCapacity(),
+                    "completed work still occupies capacity until its response is handled");
+            scheduler.complete();
+            scheduler.complete();
             assertTrue(scheduler.hasCapacity());
         }
     }
