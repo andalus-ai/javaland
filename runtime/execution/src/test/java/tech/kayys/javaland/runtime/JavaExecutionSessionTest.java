@@ -33,6 +33,24 @@ class JavaExecutionSessionTest {
     }
 
     @Test
+    void providesStateAwareCompletionSuggestionsAndReplacementAnchor() throws Exception {
+        try (JavaExecutionSession session = JavaExecutionSession.create()) {
+            session.eval("void greetJavaLand() {}");
+            var result = session.complete("greetJ", 6);
+            assertEquals(0, result.cursorStart());
+            assertTrue(result.matches().contains("greetJavaLand"));
+        }
+    }
+
+    @Test
+    void validatesCompletionCursorOffsets() {
+        try (JavaExecutionSession session = JavaExecutionSession.create()) {
+            assertThrows(IllegalArgumentException.class, () -> session.complete("hello", 6));
+            assertThrows(IllegalArgumentException.class, () -> session.complete("hello", -1));
+        }
+    }
+
+    @Test
     void exposesJshellForCompletionAndClasspathIntegration() {
         try (JavaExecutionSession session = JavaExecutionSession.create()) {
             assertNotNull(session.shell());
@@ -44,8 +62,7 @@ class JavaExecutionSessionTest {
     void reportsCompilationDiagnostics() {
         try (JavaExecutionSession session = JavaExecutionSession.create()) {
             IllegalArgumentException failure = assertThrows(
-                    IllegalArgumentException.class,
-                    () -> session.eval("int broken = ;"));
+                    IllegalArgumentException.class, () -> session.eval("int broken = ;"));
             assertFalse(failure.getMessage().isBlank());
         }
     }
@@ -53,8 +70,7 @@ class JavaExecutionSessionTest {
     @Test
     void surfacesExceptionsThrownByUserCode() {
         try (JavaExecutionSession session = JavaExecutionSession.create()) {
-            IllegalStateException failure = assertThrows(
-                    IllegalStateException.class,
+            IllegalStateException failure = assertThrows(IllegalStateException.class,
                     () -> session.eval("throw new IllegalStateException(\"boom\");"));
             assertEquals("Java snippet execution failed", failure.getMessage());
             assertEquals("boom", failure.getCause().getMessage());
@@ -77,5 +93,6 @@ class JavaExecutionSessionTest {
         assertTrue(session.isClosed());
         assertThrows(IllegalStateException.class, () -> session.eval("1 + 1"));
         assertThrows(IllegalStateException.class, session::shell);
+        assertThrows(IllegalStateException.class, () -> session.complete("x", 1));
     }
 }
