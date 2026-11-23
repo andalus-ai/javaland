@@ -159,7 +159,7 @@ public final class JupyterExecutionMessageHandler implements JupyterMessageHandl
 
     private static JupyterOutboundMessage reply(
             JupyterInboundMessage inbound, String messageType, Map<String, Object> content) {
-        return outbound(inbound, JupyterZmqChannel.SHELL, List.of(), messageType, content);
+        return outbound(inbound, JupyterZmqChannel.SHELL, inbound.identities(), messageType, content);
     }
 
     private static JupyterOutboundMessage iopub(
