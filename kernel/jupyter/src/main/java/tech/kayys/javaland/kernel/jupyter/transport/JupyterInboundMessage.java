@@ -5,7 +5,7 @@ import tech.kayys.javaland.transport.jupyter.zmq.JupyterZmqChannel;
 import java.util.List;
 import java.util.Objects;
 
-/** Verified inbound message with its channel and immutable routing identities. */
+/** Verified inbound message with its channel and immutable pre-delimiter envelope frames. */
 public record JupyterInboundMessage(JupyterZmqChannel channel, List<byte[]> identities,
                                     JupyterMessage message) {
     public JupyterInboundMessage {
