@@ -24,6 +24,7 @@ class JupyterExecutionMessageHandlerTest {
             assertEquals("javaland", response.message().content().get("implementation"));
             assertEquals("5.3", response.message().content().get("protocol_version"));
             assertEquals("request-1", response.message().parentHeader().get("msg_id"));
+            assertArrayEquals(new byte[]{1}, response.identities().getFirst());
         }
     }
 
@@ -184,6 +185,15 @@ class JupyterExecutionMessageHandlerTest {
                     responses.stream().map(item -> item.message().header().messageType()).toList());
             assertEquals("42", ((Map<?, ?>) responses.get(2).message().content().get("data"))
                     .get("text/plain"));
+            assertEquals(JupyterZmqChannel.IOPUB, responses.get(0).channel());
+            assertEquals("status.request-session",
+                    new String(responses.get(0).identities().getFirst(),
+                            java.nio.charset.StandardCharsets.UTF_8));
+            var executeReply = responses.stream()
+                    .filter(item -> item.message().header().messageType().equals("execute_reply"))
+                    .findFirst().orElseThrow();
+            assertEquals(JupyterZmqChannel.SHELL, executeReply.channel());
+            assertArrayEquals(new byte[]{1}, executeReply.identities().getFirst());
         }
     }
 
