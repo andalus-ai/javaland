@@ -20,7 +20,7 @@ dependencies {
 tasks.test { useJUnitPlatform(); jvmArgs("--add-opens=jdk.jshell/jdk.jshell=ALL-UNNAMED") }
 tasks.jar {
     archiveBaseName.set("javaland-kernel")
-    manifest { attributes("Main-Class" to "tech.kayys.javaland.jupyter.KernelLauncher",
+    manifest { attributes("Main-Class" to "tech.kayys.javaland.kernel.jupyter.KernelLauncher",
         "Automatic-Module-Name" to "tech.kayys.javaland.jupyter.kernel") }
 }
 val fatJar by tasks.registering(Jar::class) {
@@ -28,7 +28,7 @@ val fatJar by tasks.registering(Jar::class) {
     description = "Assemble a runnable standalone Javaland Jupyter kernel jar."
     archiveBaseName.set("javaland-kernel"); archiveClassifier.set("")
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-    manifest { attributes("Main-Class" to "tech.kayys.javaland.jupyter.KernelLauncher",
+    manifest { attributes("Main-Class" to "tech.kayys.javaland.kernel.jupyter.KernelLauncher",
         "Automatic-Module-Name" to "tech.kayys.javaland.jupyter.kernel") }
     from(sourceSets.main.get().output)
     dependsOn(configurations.runtimeClasspath)
