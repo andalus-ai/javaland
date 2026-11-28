@@ -17,22 +17,20 @@ import java.util.Objects;
 final class NotebookOutputCapture {
     private static final int MAX_CAPTURE_BYTES = 1024 * 1024;
     private final AtomicReference<Buffers> active = new AtomicReference<>();
-    private final PrintStream stdout;
-    private final PrintStream stderr;
+    private final PrintStream fallbackOut;
+    private final PrintStream fallbackErr;
 
     NotebookOutputCapture(PrintStream fallbackOut, PrintStream fallbackErr) {
-        Objects.requireNonNull(fallbackOut, "fallbackOut must not be null");
-        Objects.requireNonNull(fallbackErr, "fallbackErr must not be null");
-        this.stdout = new PrintStream(new RoutedOutputStream(fallbackOut, true), true, StandardCharsets.UTF_8);
-        this.stderr = new PrintStream(new RoutedOutputStream(fallbackErr, false), true, StandardCharsets.UTF_8);
+        this.fallbackOut = Objects.requireNonNull(fallbackOut, "fallbackOut must not be null");
+        this.fallbackErr = Objects.requireNonNull(fallbackErr, "fallbackErr must not be null");
     }
 
     PrintStream stdout() {
-        return stdout;
+        return new PrintStream(new RoutedOutputStream(fallbackOut, true), true, StandardCharsets.UTF_8);
     }
 
     PrintStream stderr() {
-        return stderr;
+        return new PrintStream(new RoutedOutputStream(fallbackErr, false), true, StandardCharsets.UTF_8);
     }
 
     Scope begin() {
