@@ -138,6 +138,28 @@ class JavaExecutionSessionTest {
     }
 
     @Test
+    void readsFromCallerOwnedInputStream() throws Exception {
+        java.io.ByteArrayInputStream input = new java.io.ByteArrayInputStream(
+                "Z".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        try (JavaExecutionSession session = JavaExecutionSession.create(input)) {
+            assertEquals("90", session.eval("System.in.read()"));
+        }
+    }
+
+    @Test
+    void createsSessionWithCallerOwnedInputAndOutputStreams() throws Exception {
+        java.io.ByteArrayInputStream input = new java.io.ByteArrayInputStream(
+                "A".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        java.io.ByteArrayOutputStream output = new java.io.ByteArrayOutputStream();
+        java.io.ByteArrayOutputStream error = new java.io.ByteArrayOutputStream();
+        try (JavaExecutionSession session = JavaExecutionSession.create(input, output, error)) {
+            assertEquals("65", session.eval("System.in.read()"));
+            session.eval("System.out.println(\\"input and output\\");");
+        }
+        assertTrue(output.toString(java.nio.charset.StandardCharsets.UTF_8).contains("input and output"));
+    }
+
+    @Test
     void closeIsIdempotentAndRejectsFurtherUse() {
         JavaExecutionSession session = JavaExecutionSession.create();
         session.close();
