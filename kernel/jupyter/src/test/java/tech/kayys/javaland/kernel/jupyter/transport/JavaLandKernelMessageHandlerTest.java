@@ -76,6 +76,50 @@ class JavaLandKernelMessageHandlerTest {
         }
     }
 
+    @Test
+    void executePublishesCellScopedStdoutAndStderrEvents() throws Exception {
+        try (var handler = new JavaLandKernelMessageHandler(new JavaLandKernel())) {
+            var responses = handler.handle(inbound("execute_request", Map.of(
+                    "code", "System.out.println(\"hello from cell\"); System.err.println(\"warning from cell\");",
+                    "silent", false, "store_history", true)));
+
+            var streams = responses.stream()
+                    .filter(item -> "stream".equals(item.message().header().messageType()))
+                    .toList();
+            assertEquals(2, streams.size());
+            assertEquals("stdout", streams.get(0).message().content().get("name"));
+            assertEquals("hello from cell" + System.lineSeparator(),
+                    streams.get(0).message().content().get("text"));
+            assertEquals("stderr", streams.get(1).message().content().get("name"));
+            assertEquals("warning from cell" + System.lineSeparator(),
+                    streams.get(1).message().content().get("text"));
+
+            var next = handler.handle(inbound("execute_request", Map.of(
+                    "code", "1 + 1", "silent", false, "store_history", true)));
+            assertTrue(next.stream().noneMatch(item ->
+                    "stream".equals(item.message().header().messageType())));
+        }
+    }
+
+    @Test
+    void executePreservesOutputProducedBeforeAnException() throws Exception {
+        try (var handler = new JavaLandKernelMessageHandler(new JavaLandKernel())) {
+            var responses = handler.handle(inbound("execute_request", Map.of(
+                    "code", "System.out.println(\"before failure\"); throw new IllegalStateException(\"boom\");",
+                    "silent", false, "store_history", true)));
+
+            assertTrue(responses.stream().anyMatch(item ->
+                    "stream".equals(item.message().header().messageType())
+                            && "before failure".equals(((String) item.message().content().get("text")).strip())));
+            assertTrue(responses.stream().anyMatch(item ->
+                    "error".equals(item.message().header().messageType())));
+            var reply = responses.stream()
+                    .filter(item -> "execute_reply".equals(item.message().header().messageType()))
+                    .findFirst().orElseThrow();
+            assertEquals("error", reply.message().content().get("status"));
+        }
+    }
+
     private static JupyterInboundMessage inbound(String type, Map<String, Object> content) {
         return inbound(JupyterZmqChannel.SHELL, type, content);
     }
