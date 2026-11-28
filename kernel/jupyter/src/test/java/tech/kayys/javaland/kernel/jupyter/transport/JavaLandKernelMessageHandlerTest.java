@@ -43,6 +43,50 @@ class JavaLandKernelMessageHandlerTest {
     }
 
     @Test
+    void javaCodeCanPublishUpdateAndClearRichDisplays() throws Exception {
+        try (var handler = new JavaLandKernelMessageHandler(new JavaLandKernel())) {
+            var responses = handler.handle(inbound("execute_request", Map.of(
+                    "code", "String displayId = notebookDisplay.display(Map.of(\"text/plain\", \"first\", \"text/html\", \"<b>first</b>\")); notebookDisplay.update(displayId, Map.of(\"text/plain\", \"second\")); notebookDisplay.clear(true);",
+                    "silent", false, "store_history", true)));
+
+            var displayMessages = responses.stream()
+                    .filter(item -> List.of("display_data", "update_display_data", "clear_output")
+                            .contains(item.message().header().messageType()))
+                    .toList();
+            assertEquals(List.of("display_data", "update_display_data", "clear_output"),
+                    displayMessages.stream().map(item -> item.message().header().messageType()).toList());
+            assertEquals("true", String.valueOf(displayMessages.getLast()
+                    .message().content().get("wait")));
+            @SuppressWarnings("unchecked")
+            Map<String, Object> transientMetadata = (Map<String, Object>)
+                    displayMessages.getFirst().message().content().get("transient");
+            String displayId = (String) transientMetadata.get("display_id");
+            @SuppressWarnings("unchecked")
+            Map<String, Object> updateTransient = (Map<String, Object>)
+                    displayMessages.get(1).message().content().get("transient");
+            assertEquals(displayId, updateTransient.get("display_id"));
+        }
+    }
+
+    @Test
+    void handlerExposesDisplayPublishUpdateAndClearOperations() throws Exception {
+        try (var handler = new JavaLandKernelMessageHandler(new JavaLandKernel())) {
+            var request = inbound("execute_request", Map.of("code", "", "silent", true));
+            var published = handler.publishDisplay(request,
+                    Map.of("text/plain", "initial"), Map.of());
+            assertEquals("display_data",
+                    published.message().message().header().messageType());
+
+            var update = handler.updateDisplay(request, published.displayId(),
+                    Map.of("text/plain", "updated"), Map.of());
+            assertEquals("update_display_data", update.message().header().messageType());
+
+            var clear = handler.clearOutput(request, false);
+            assertEquals("clear_output", clear.message().header().messageType());
+        }
+    }
+
+    @Test
     void completionAndCompletenessUseTheKernelOwnedJshellSession() throws Exception {
         try (var handler = new JavaLandKernelMessageHandler(new JavaLandKernel())) {
             handler.handle(inbound("execute_request", Map.of(
