@@ -6,6 +6,8 @@ import org.dflib.jjava.jupyter.kernel.display.DisplayData;
 import org.dflib.jjava.jupyter.kernel.display.mime.MIMEType;
 import tech.kayys.javaland.kernel.jupyter.JavaLandKernel;
 import tech.kayys.javaland.kernel.jupyter.NotebookExecutionResult;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicReference;
 import tech.kayys.javaland.protocol.jupyter.JupyterMessage;
 import tech.kayys.javaland.protocol.jupyter.JupyterMessageHeader;
 import tech.kayys.javaland.transport.jupyter.zmq.JupyterZmqChannel;
@@ -27,7 +29,7 @@ import java.util.UUID;
  * does not replace the active launcher yet; stream capture and the remaining notebook
  * protocol features must be migrated before that switch.</p>
  */
-public final class JavaLandKernelMessageHandler implements JupyterMessageHandler, AutoCloseable {
+public final class JavaLandKernelMessageHandler implements JupyterAsyncMessageHandler, AutoCloseable {
     private static final String PROTOCOL_VERSION = "5.3";
     private static final String IMPLEMENTATION_VERSION = "0.1.0";
     private static final List<String> DISPLAY_MIME_TYPES = List.of(
@@ -36,22 +38,63 @@ public final class JavaLandKernelMessageHandler implements JupyterMessageHandler
             "image/png", "image/jpeg", "image/gif", "image/svg+xml", "audio/wav");
 
     private final JavaLandKernel kernel;
+    private final JupyterStdinInputStream stdin;
+    private final ConcurrentLinkedQueue<JupyterOutboundMessage> asyncMessages = new ConcurrentLinkedQueue<>();
+    private final AtomicReference<JupyterInboundMessage> activeExecution = new AtomicReference<>();
     private int executionCount;
 
     public JavaLandKernelMessageHandler() {
-        this(new JavaLandKernel());
+        this.stdin = new JupyterStdinInputStream(this::requestInput);
+        this.kernel = new JavaLandKernel(stdin);
     }
 
+    /** Creates a handler around an externally managed kernel without notebook stdin injection. */
     public JavaLandKernelMessageHandler(JavaLandKernel kernel) {
         this.kernel = Objects.requireNonNull(kernel, "kernel must not be null");
+        this.stdin = null;
+    }
+
+    private void requestInput(String prompt, boolean password) {
+        JupyterInboundMessage parent = activeExecution.get();
+        if (parent == null || stdin == null) {
+            throw new IllegalStateException("No active notebook execution can receive input");
+        }
+        asyncMessages.add(outbound(parent, JupyterZmqChannel.STDIN, parent.identities(),
+                "input_request", Map.of("prompt", prompt, "password", password)));
+    }
+
+    @Override
+    public List<JupyterOutboundMessage> drainAsyncMessages() {
+        List<JupyterOutboundMessage> drained = new ArrayList<>();
+        JupyterOutboundMessage message;
+        while ((message = asyncMessages.poll()) != null) {
+            drained.add(message);
+        }
+        return List.copyOf(drained);
     }
 
     @Override
     public List<JupyterOutboundMessage> handle(JupyterInboundMessage inbound) throws Exception {
         Objects.requireNonNull(inbound, "inbound must not be null");
+        if (inbound.channel() == JupyterZmqChannel.STDIN) {
+            if (!"input_reply".equals(inbound.message().header().messageType()) || stdin == null) {
+                return List.of();
+            }
+            JupyterInboundMessage execution = activeExecution.get();
+            Object parentId = inbound.message().parentHeader().get("msg_id");
+            if (execution == null || !execution.message().header().messageId().equals(parentId)) {
+                return List.of();
+            }
+            Object value = inbound.message().content().get("value");
+            stdin.submitIfPending(stringValue(value, ""));
+            return List.of();
+        }
         if (inbound.channel() == JupyterZmqChannel.CONTROL) {
             if (!"interrupt_request".equals(inbound.message().header().messageType())) {
                 return List.of();
+            }
+            if (stdin != null) {
+                stdin.cancelPending();
             }
             kernel.interrupt();
             return List.of(outbound(inbound, JupyterZmqChannel.CONTROL, inbound.identities(),
@@ -71,6 +114,15 @@ public final class JavaLandKernelMessageHandler implements JupyterMessageHandler
     }
 
     private List<JupyterOutboundMessage> execute(JupyterInboundMessage inbound) {
+        activeExecution.set(inbound);
+        try {
+            return executeActive(inbound);
+        } finally {
+            activeExecution.compareAndSet(inbound, null);
+        }
+    }
+
+    private List<JupyterOutboundMessage> executeActive(JupyterInboundMessage inbound) {
         Map<String, Object> request = inbound.message().content();
         String code = stringValue(request.get("code"), "");
         boolean silent = booleanValue(request.get("silent"), false);
@@ -246,6 +298,9 @@ public final class JavaLandKernelMessageHandler implements JupyterMessageHandler
 
     @Override
     public void close() {
+        if (stdin != null) {
+            stdin.close();
+        }
         kernel.onShutdown(false);
     }
 }

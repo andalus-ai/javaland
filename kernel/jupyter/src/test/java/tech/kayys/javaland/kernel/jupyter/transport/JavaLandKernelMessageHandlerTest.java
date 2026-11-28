@@ -120,6 +120,65 @@ class JavaLandKernelMessageHandlerTest {
         }
     }
 
+    @Test
+    void executeCanReadFrontendInputThroughStdinChannel() throws Exception {
+        try (var handler = new JavaLandKernelMessageHandler()) {
+            var execute = inboundWithId("stdin-execute", JupyterZmqChannel.SHELL,
+                    "execute_request", Map.of(
+                            "code", "new java.util.Scanner(System.in).nextLine()",
+                            "silent", false, "store_history", true), Map.of());
+            java.util.concurrent.atomic.AtomicReference<List<JupyterOutboundMessage>> result =
+                    new java.util.concurrent.atomic.AtomicReference<>();
+            Thread worker = new Thread(() -> {
+                try {
+                    result.set(handler.handle(execute));
+                } catch (Exception failure) {
+                    throw new AssertionError(failure);
+                }
+            });
+            worker.start();
+
+            List<JupyterOutboundMessage> requests = List.of();
+            long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(5);
+            while (requests.isEmpty() && System.nanoTime() < deadline) {
+                requests = handler.drainAsyncMessages();
+                if (requests.isEmpty()) {
+                    Thread.sleep(10);
+                }
+            }
+            assertEquals(1, requests.size(), "execution should publish one input_request");
+            JupyterOutboundMessage inputRequest = requests.getFirst();
+            assertEquals(JupyterZmqChannel.STDIN, inputRequest.channel());
+            assertEquals("input_request", inputRequest.message().header().messageType());
+            assertEquals("stdin-execute",
+                    inputRequest.message().parentHeader().get("msg_id"));
+
+            var inputReply = inboundWithId("stdin-reply", JupyterZmqChannel.STDIN,
+                    "input_reply", Map.of("value", "hello from frontend"),
+                    Map.of("msg_id", "stdin-execute"));
+            assertTrue(handler.handle(inputReply).isEmpty());
+            worker.join(5_000);
+            assertFalse(worker.isAlive(), "execution should resume after input_reply");
+            assertNotNull(result.get());
+            var output = result.get().stream()
+                    .filter(item -> "execute_result".equals(item.message().header().messageType()))
+                    .findFirst().orElseThrow();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> data = (Map<String, Object>) output.message().content().get("data");
+            assertEquals("hello from frontend", data.get("text/plain"));
+        }
+    }
+
+    private static JupyterInboundMessage inboundWithId(
+            String id, JupyterZmqChannel channel, String type,
+            Map<String, Object> content, Map<String, Object> parent) {
+        var header = new tech.kayys.javaland.protocol.jupyter.JupyterMessageHeader(
+                id, "test-user", "adapter-session", Instant.now().toString(), type, "5.3");
+        return new JupyterInboundMessage(channel, List.of(new byte[]{7}),
+                new tech.kayys.javaland.protocol.jupyter.JupyterMessage(
+                        header, parent, Map.of(), content));
+    }
+
     private static JupyterInboundMessage inbound(String type, Map<String, Object> content) {
         return inbound(JupyterZmqChannel.SHELL, type, content);
     }
