@@ -40,6 +40,7 @@ public final class JavaLandKernelMessageHandler implements JupyterAsyncMessageHa
     private final JavaLandKernel kernel;
     private final JupyterStdinInputStream stdin;
     private final ConcurrentLinkedQueue<JupyterOutboundMessage> asyncMessages = new ConcurrentLinkedQueue<>();
+    private final NotebookDisplayPublisher displayPublisher = new NotebookDisplayPublisher();
     private final AtomicReference<JupyterInboundMessage> activeExecution = new AtomicReference<>();
     private int executionCount;
 
@@ -61,6 +62,31 @@ public final class JavaLandKernelMessageHandler implements JupyterAsyncMessageHa
         }
         asyncMessages.add(outbound(parent, JupyterZmqChannel.STDIN, parent.identities(),
                 "input_request", Map.of("prompt", prompt, "password", password)));
+    }
+
+    /**
+     * Publishes a rich IOPub display associated with the supplied notebook request.
+     * The returned identifier can be used with {@link #updateDisplay}.
+     */
+    public NotebookDisplayPublisher.PublishedDisplay publishDisplay(
+            JupyterInboundMessage parent,
+            Map<String, Object> data,
+            Map<String, Object> metadata) {
+        return displayPublisher.display(parent, data, metadata);
+    }
+
+    /** Updates a display previously published by this handler. */
+    public JupyterOutboundMessage updateDisplay(
+            JupyterInboundMessage parent,
+            String displayId,
+            Map<String, Object> data,
+            Map<String, Object> metadata) {
+        return displayPublisher.updateDisplay(parent, displayId, data, metadata);
+    }
+
+    /** Clears the frontend output area and invalidates this handler's display identifiers. */
+    public JupyterOutboundMessage clearOutput(JupyterInboundMessage parent, boolean wait) {
+        return displayPublisher.clearOutput(parent, wait);
     }
 
     @Override
