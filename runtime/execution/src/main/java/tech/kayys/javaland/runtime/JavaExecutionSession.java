@@ -5,6 +5,9 @@ import jdk.jshell.Snippet;
 import jdk.jshell.SnippetEvent;
 import jdk.jshell.SourceCodeAnalysis;
 
+import java.io.OutputStream;
+import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -26,11 +29,11 @@ public final class JavaExecutionSession implements AutoCloseable {
     private final JShell shell;
     private final AtomicBoolean closed = new AtomicBoolean();
 
-    private JavaExecutionSession(String startupScript, String... compilerOptions) {
+    private JavaExecutionSession(String startupScript, OutputStream output, OutputStream error, String... compilerOptions) {
         this.shell = JShell.builder()
                 .in(System.in)
-                .out(System.out)
-                .err(System.err)
+                .out(new PrintStream(output, true, StandardCharsets.UTF_8))
+                .err(new PrintStream(error, true, StandardCharsets.UTF_8))
                 .compilerOptions(compilerOptions)
                 .build();
         try {
@@ -49,11 +52,24 @@ public final class JavaExecutionSession implements AutoCloseable {
                 "--add-modules=jdk.incubator.vector");
     }
 
+    /**
+     * Creates a standard session whose snippet output is routed to caller-owned streams.
+     * The streams are not closed by the session.
+     */
+    public static JavaExecutionSession create(OutputStream output, OutputStream error) {
+        Objects.requireNonNull(output, "output must not be null");
+        Objects.requireNonNull(error, "error must not be null");
+        return new JavaExecutionSession(DEFAULT_STARTUP_SCRIPT, output, error,
+                "--enable-preview",
+                "--source", Integer.toString(Runtime.version().feature()),
+                "--add-modules=jdk.incubator.vector");
+    }
+
     /** Creates a session with explicit startup source and JShell compiler options. */
     public static JavaExecutionSession create(String startupScript, String... compilerOptions) {
         Objects.requireNonNull(startupScript, "startupScript must not be null");
         Objects.requireNonNull(compilerOptions, "compilerOptions must not be null");
-        return new JavaExecutionSession(startupScript, compilerOptions.clone());
+        return new JavaExecutionSession(startupScript, System.out, System.err, compilerOptions.clone());
     }
 
     /** Evaluates one or more complete snippets in the persistent session. */
