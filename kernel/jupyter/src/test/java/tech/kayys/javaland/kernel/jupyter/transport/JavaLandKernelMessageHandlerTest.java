@@ -43,6 +43,24 @@ class JavaLandKernelMessageHandlerTest {
     }
 
     @Test
+    void handlerExposesDisplayPublishUpdateAndClearOperations() throws Exception {
+        try (var handler = new JavaLandKernelMessageHandler(new JavaLandKernel())) {
+            var request = inbound("execute_request", Map.of("code", "", "silent", true));
+            var published = handler.publishDisplay(request,
+                    Map.of("text/plain", "initial"), Map.of());
+            assertEquals("display_data",
+                    published.message().message().header().messageType());
+
+            var update = handler.updateDisplay(request, published.displayId(),
+                    Map.of("text/plain", "updated"), Map.of());
+            assertEquals("update_display_data", update.message().header().messageType());
+
+            var clear = handler.clearOutput(request, false);
+            assertEquals("clear_output", clear.message().header().messageType());
+        }
+    }
+
+    @Test
     void completionAndCompletenessUseTheKernelOwnedJshellSession() throws Exception {
         try (var handler = new JavaLandKernelMessageHandler(new JavaLandKernel())) {
             handler.handle(inbound("execute_request", Map.of(
