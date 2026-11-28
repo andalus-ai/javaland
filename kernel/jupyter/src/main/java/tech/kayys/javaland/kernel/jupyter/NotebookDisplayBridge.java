@@ -12,7 +12,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 /** Java-facing display API injected into a persistent notebook JShell session. */
 public final class NotebookDisplayBridge {
     private static final Map<String, NotebookDisplayBridge> SESSIONS = new ConcurrentHashMap<>();
-    private final ConcurrentLinkedQueue<DisplayEvent> events = new ConcurrentLinkedQueue<>();
+    private final ConcurrentLinkedQueue<NotebookDisplayEvent> events = new ConcurrentLinkedQueue<>();
     private final String sessionId;
 
     private NotebookDisplayBridge(String sessionId) { this.sessionId = sessionId; }
@@ -37,7 +37,7 @@ public final class NotebookDisplayBridge {
     /** Publishes a MIME bundle with metadata and returns its display identifier. */
     public String display(Map<String, ?> data, Map<String, ?> metadata) {
         String id = UUID.randomUUID().toString();
-        events.add(new DisplayEvent(Type.DISPLAY, id, immutableMap(data), immutableMap(metadata), false));
+        events.add(new NotebookDisplayEvent(NotebookDisplayEvent.Type.DISPLAY, id, immutableMap(data), immutableMap(metadata), false));
         return id;
     }
 
@@ -50,15 +50,15 @@ public final class NotebookDisplayBridge {
     /** Updates a display previously created in this kernel session. */
     public void update(String id, Map<String, ?> data, Map<String, ?> metadata) {
         if (id == null || id.isBlank()) throw new IllegalArgumentException("displayId must not be blank");
-        events.add(new DisplayEvent(Type.UPDATE, id, immutableMap(data), immutableMap(metadata), false));
+        events.add(new NotebookDisplayEvent(NotebookDisplayEvent.Type.UPDATE, id, immutableMap(data), immutableMap(metadata), false));
     }
 
     /** Requests clearing the current frontend output area. */
-    public void clear(boolean wait) { events.add(new DisplayEvent(Type.CLEAR, "", Map.of(), Map.of(), wait)); }
+    public void clear(boolean wait) { events.add(new NotebookDisplayEvent(NotebookDisplayEvent.Type.CLEAR, "", Map.of(), Map.of(), wait)); }
 
-    List<DisplayEvent> drainEvents() {
-        List<DisplayEvent> result = new ArrayList<>();
-        DisplayEvent event;
+    List<NotebookDisplayEvent> drainEvents() {
+        List<NotebookDisplayEvent> result = new ArrayList<>();
+        NotebookDisplayEvent event;
         while ((event = events.poll()) != null) result.add(event);
         return List.copyOf(result);
     }
@@ -74,7 +74,4 @@ public final class NotebookDisplayBridge {
         return Map.copyOf(copy);
     }
 
-    record DisplayEvent(Type type, String displayId, Map<String, Object> data,
-                        Map<String, Object> metadata, boolean wait) {}
-    enum Type { DISPLAY, UPDATE, CLEAR }
 }
