@@ -63,6 +63,8 @@ public final class NotebookDisplayBridge {
         return List.copyOf(result);
     }
 
+    String sessionId() { return sessionId; }
+
     void close() { SESSIONS.remove(sessionId, this); events.clear(); }
 
     private static Map<String, Object> immutableMap(Map<String, ?> source) {
