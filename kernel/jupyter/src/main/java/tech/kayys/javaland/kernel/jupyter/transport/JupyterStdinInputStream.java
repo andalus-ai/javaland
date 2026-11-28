@@ -19,6 +19,7 @@ public final class JupyterStdinInputStream extends InputStream {
         void request(String prompt, boolean password);
     }
 
+    private static final byte[] CANCELLED = new byte[0];
     private final InputRequester requester;
     private final BlockingQueue<byte[]> replies = new ArrayBlockingQueue<>(1);
     private final AtomicBoolean closed = new AtomicBoolean();
@@ -42,6 +43,13 @@ public final class JupyterStdinInputStream extends InputStream {
         byte[] bytes = (value + System.lineSeparator()).getBytes(StandardCharsets.UTF_8);
         if (!replies.offer(bytes)) {
             throw new IllegalStateException("No notebook input request is pending");
+        }
+    }
+
+    /** Cancels the currently pending frontend prompt without permanently closing stdin. */
+    public void cancelPending() {
+        if (awaitingReply.compareAndSet(true, false)) {
+            replies.offer(CANCELLED);
         }
     }
 
@@ -78,6 +86,9 @@ public final class JupyterStdinInputStream extends InputStream {
                 requester.request("", false);
                 current = replies.take();
                 offset = 0;
+                if (current == CANCELLED && !closed.get()) {
+                    throw new InterruptedIOException("Notebook input request was cancelled");
+                }
             } catch (InterruptedException interrupted) {
                 awaitingReply.set(false);
                 Thread.currentThread().interrupt();
