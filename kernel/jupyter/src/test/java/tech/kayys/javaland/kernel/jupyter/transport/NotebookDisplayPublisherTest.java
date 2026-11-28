@@ -65,6 +65,22 @@ class NotebookDisplayPublisherTest {
                 inbound(), "not-registered", Map.of("text/plain", "after"), Map.of()));
     }
 
+    @Test
+    void displayCarriesBinaryMimeValuesInSeparateMessageBuffers() {
+        NotebookDisplayPublisher publisher = new NotebookDisplayPublisher();
+        byte[] png = new byte[] {(byte) 0x89, 0x50, 0x4e, 0x47};
+
+        var published = publisher.display(inbound(), Map.of(
+                "text/plain", "PNG image",
+                "image/png", png), Map.of());
+
+        assertEquals(Map.of("text/plain", "PNG image"),
+                data(published.message()));
+        assertEquals(List.of(List.of("data", "image/png")),
+                published.message().message().content().get("buffer_paths"));
+        assertArrayEquals(png, published.message().message().buffers().getFirst());
+    }
+
     @SuppressWarnings("unchecked")
     private static Map<String, Object> data(JupyterOutboundMessage message) {
         return (Map<String, Object>) message.message().content().get("data");
