@@ -93,6 +93,9 @@ public final class JavaLandKernelMessageHandler implements JupyterAsyncMessageHa
             if (!"interrupt_request".equals(inbound.message().header().messageType())) {
                 return List.of();
             }
+            if (stdin != null) {
+                stdin.cancelPending();
+            }
             kernel.interrupt();
             return List.of(outbound(inbound, JupyterZmqChannel.CONTROL, inbound.identities(),
                     "interrupt_reply", Map.of()));
