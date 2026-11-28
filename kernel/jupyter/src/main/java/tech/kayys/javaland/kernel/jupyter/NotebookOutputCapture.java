@@ -9,7 +9,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
 /**
- * Routes JShell output into the capture scope active on the evaluating thread.
+ * Routes JShell output into the active cell scope for this kernel session.
  *
  * <p>It never replaces process-wide {@code System.out} or {@code System.err}.
  * Output written outside an active cell scope is forwarded to the original streams.</p>
@@ -62,7 +62,7 @@ final class NotebookOutputCapture {
         @Override
         public void close() {
             if (!closed) {
-                active.remove();
+                active.compareAndSet(buffers, null);
                 closed = true;
             }
         }
