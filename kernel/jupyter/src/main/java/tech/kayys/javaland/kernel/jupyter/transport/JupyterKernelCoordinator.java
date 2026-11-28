@@ -59,6 +59,7 @@ public final class JupyterKernelCoordinator implements AutoCloseable {
             while (running.get() && !closed.get()) {
                 checkWorkerFailure();
                 sendCompletedResponses();
+                sendAsyncMessages();
                 for (JupyterZmqChannel channel : transport.poll(POLL_INTERVAL_MILLIS)) {
                     if (!running.get() || closed.get()) break;
                     if (channel == JupyterZmqChannel.HEARTBEAT) {
@@ -70,10 +71,12 @@ public final class JupyterKernelCoordinator implements AutoCloseable {
                         dispatchOnCoordinator(channel);
                     }
                 }
+                sendAsyncMessages();
             }
             if (!closed.get()) {
                 checkWorkerFailure();
                 sendCompletedResponses();
+                sendAsyncMessages();
             }
         } finally {
             running.set(false);
@@ -131,6 +134,15 @@ public final class JupyterKernelCoordinator implements AutoCloseable {
             throw new IllegalStateException("Message handler returned null");
         }
         sendResponses(responses);
+    }
+
+    private void sendAsyncMessages() {
+        if (handler instanceof JupyterAsyncMessageHandler asyncHandler) {
+            List<JupyterOutboundMessage> messages = asyncHandler.drainAsyncMessages();
+            if (messages != null && !messages.isEmpty()) {
+                sendResponses(messages);
+            }
+        }
     }
 
     private void sendCompletedResponses() {
