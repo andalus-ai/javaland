@@ -78,6 +78,48 @@ class JupyterStdinInputStreamTest {
     }
 
     @Test
+    void cancellationUnblocksReadAndAllowsAnotherPrompt() throws Exception {
+        CountDownLatch firstRequest = new CountDownLatch(1);
+        AtomicInteger requests = new AtomicInteger();
+        try (JupyterStdinInputStream input = new JupyterStdinInputStream((prompt, password) -> {
+            if (requests.incrementAndGet() == 1) {
+                firstRequest.countDown();
+            }
+        })) {
+            AtomicInteger outcome = new AtomicInteger(Integer.MIN_VALUE);
+            Thread reader = new Thread(() -> {
+                try {
+                    outcome.set(input.read());
+                } catch (IOException failure) {
+                    outcome.set(-2);
+                }
+            });
+            reader.start();
+            assertTrue(firstRequest.await(2, TimeUnit.SECONDS));
+            input.cancelPending();
+            reader.join(2_000);
+            assertFalse(reader.isAlive());
+            assertEquals(-2, outcome.get());
+
+            Thread nextReader = new Thread(() -> {
+                try {
+                    outcome.set(input.read());
+                } catch (IOException failure) {
+                    outcome.set(-3);
+                }
+            });
+            nextReader.start();
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
+            while (requests.get() < 2 && System.nanoTime() < deadline) {
+                Thread.sleep(5);
+            }
+            input.submit("r");
+            nextReader.join(2_000);
+            assertEquals('r', outcome.get());
+        }
+    }
+
+    @Test
     void rejectsSecondReplyWhenOneIsAlreadyQueued() {
         try (JupyterStdinInputStream input = new JupyterStdinInputStream((prompt, password) -> {})) {
             assertThrows(IllegalStateException.class, () -> input.submit("first"));
