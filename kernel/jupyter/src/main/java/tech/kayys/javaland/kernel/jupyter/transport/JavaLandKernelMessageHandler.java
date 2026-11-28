@@ -80,6 +80,11 @@ public final class JavaLandKernelMessageHandler implements JupyterAsyncMessageHa
             if (!"input_reply".equals(inbound.message().header().messageType()) || stdin == null) {
                 return List.of();
             }
+            JupyterInboundMessage execution = activeExecution.get();
+            Object parentId = inbound.message().parentHeader().get("msg_id");
+            if (execution == null || !execution.message().header().messageId().equals(parentId)) {
+                return List.of();
+            }
             Object value = inbound.message().content().get("value");
             stdin.submit(stringValue(value, ""));
             return List.of();
