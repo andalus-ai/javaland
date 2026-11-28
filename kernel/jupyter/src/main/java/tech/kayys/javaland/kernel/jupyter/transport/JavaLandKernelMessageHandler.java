@@ -86,7 +86,7 @@ public final class JavaLandKernelMessageHandler implements JupyterAsyncMessageHa
                 return List.of();
             }
             Object value = inbound.message().content().get("value");
-            stdin.submit(stringValue(value, ""));
+            stdin.submitIfPending(stringValue(value, ""));
             return List.of();
         }
         if (inbound.channel() == JupyterZmqChannel.CONTROL) {
