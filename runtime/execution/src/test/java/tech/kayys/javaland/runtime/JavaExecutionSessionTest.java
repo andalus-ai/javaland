@@ -86,6 +86,80 @@ class JavaExecutionSessionTest {
     }
 
     @Test
+    void interruptStopsRunningEvaluationAndLeavesSessionUsable() throws Exception {
+        String marker = "javaland.interrupt.test.started";
+        System.clearProperty(marker);
+        try (JavaExecutionSession session = JavaExecutionSession.create()) {
+            java.util.concurrent.atomic.AtomicReference<Throwable> failure =
+                    new java.util.concurrent.atomic.AtomicReference<>();
+            java.util.concurrent.CountDownLatch finished = new java.util.concurrent.CountDownLatch(1);
+            Thread evaluator = new Thread(() -> {
+                try {
+                    session.eval("System.setProperty(\"" + marker
+                            + "\", \"true\"); while (true) { Thread.yield(); }");
+                } catch (Throwable thrown) {
+                    failure.set(thrown);
+                } finally {
+                    finished.countDown();
+                }
+            }, "javaland-jshell-interrupt-test");
+            evaluator.setDaemon(true);
+            evaluator.start();
+
+            long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(5);
+            while (!"true".equals(System.getProperty(marker))
+                    && System.nanoTime() < deadline && evaluator.isAlive()) {
+                Thread.sleep(10);
+            }
+            assertEquals("true", System.getProperty(marker),
+                    "the JShell evaluation should enter the long-running snippet");
+
+            session.interrupt();
+
+            assertTrue(finished.await(5, java.util.concurrent.TimeUnit.SECONDS),
+                    "interrupt should stop the active JShell evaluation");
+            assertNull(failure.get(), "stopping an evaluation should not corrupt the session");
+            assertEquals("42", session.eval("6 * 7"),
+                    "the session should accept a new evaluation after interruption");
+        } finally {
+            System.clearProperty(marker);
+        }
+    }
+
+    @Test
+    void routesSnippetOutputToCallerOwnedStreams() throws Exception {
+        java.io.ByteArrayOutputStream stdout = new java.io.ByteArrayOutputStream();
+        java.io.ByteArrayOutputStream stderr = new java.io.ByteArrayOutputStream();
+        try (JavaExecutionSession session = JavaExecutionSession.create(stdout, stderr)) {
+            session.eval("System.out.println(\"captured stdout\"); System.err.println(\"captured stderr\");");
+        }
+        assertTrue(stdout.toString(java.nio.charset.StandardCharsets.UTF_8).contains("captured stdout"));
+        assertTrue(stderr.toString(java.nio.charset.StandardCharsets.UTF_8).contains("captured stderr"));
+    }
+
+    @Test
+    void readsFromCallerOwnedInputStream() throws Exception {
+        java.io.ByteArrayInputStream input = new java.io.ByteArrayInputStream(
+                "Z".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        try (JavaExecutionSession session = JavaExecutionSession.create(input)) {
+            assertEquals("90", session.eval("System.in.read()"));
+        }
+    }
+
+    @Test
+    void createsSessionWithCallerOwnedInputAndOutputStreams() throws Exception {
+        java.io.ByteArrayInputStream input = new java.io.ByteArrayInputStream(
+                "A".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        java.io.ByteArrayOutputStream output = new java.io.ByteArrayOutputStream();
+        java.io.ByteArrayOutputStream error = new java.io.ByteArrayOutputStream();
+        try (JavaExecutionSession session = JavaExecutionSession.create(input, output, error)) {
+            assertEquals("65", session.eval("System.in.read()"));
+            session.eval("System.out.println(\\"input and output\\");");
+        }
+        assertTrue(output.toString(java.nio.charset.StandardCharsets.UTF_8).contains("input and output"));
+    }
+
+    @Test
     void closeIsIdempotentAndRejectsFurtherUse() {
         JavaExecutionSession session = JavaExecutionSession.create();
         session.close();

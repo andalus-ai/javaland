@@ -4,17 +4,15 @@
 
 Standalone Jupyter kernel for the Javaland AI platform.
 
-Extends [JJava](https://github.com/dflib/jjava)'s `BaseKernel` (Jupyter wire
-protocol over ZMQ/JeroMQ) and executes notebook cells through JShell. There is
-no IJava dependency and no separate server process.
+Uses [JJava](https://github.com/dflib/jjava)'s `BaseKernel` as a transitional Jupyter messaging adapter while JavaLand owns persistent notebook execution through the JDK JShell APIs. There is no IJava dependency and no separate server process.
 
 ## Architecture
 
 ```
 Jupyter ←──ZMQ──→ KernelLauncher
                        │
-                  JavalandKernel (extends BaseKernel)
-                  ├── CodeEvaluator (JShell)
+                  JavaLandKernel (extends BaseKernel)
+                  ├── JavaExecutionSession (JDK JShell)
                   ├── CompletionProvider (JShell sourceCodeAnalysis)
                   ├── NotebookMagicDispatcher (exact/prefix magic routing)
                   ├── NotebookMagicArgs (shared magic option parsing)
@@ -44,10 +42,10 @@ Jupyter ←──ZMQ──→ KernelLauncher
                   ├── NotebookCharts (notebook SVG chart rendering)
                   ├── NotebookChartRenderer (line, scatter, and histogram preview envelopes)
                   ├── TensorDisplay (HTML heatmap rendering)
-                  └── Javaland ML libraries on the kernel classpath
+                  └── Optional Aljabr libraries on the kernel classpath
 ```
 
-`JavalandKernel` owns kernel lifecycle and runtime execution. Keep reusable
+`JavaLandKernel` owns the active kernel adapter and delegates persistent execution to `JavaExecutionSession`. Keep reusable
 routing, argument parsing, runtime option parsing, table/data option parsing, file/archive option parsing, catalog, preload, runtime preview rendering, dependency parsing and lookup, dependency preview rendering, delimited data
 loading, document rendering, document preview rendering, file utilities, file preview rendering, archive parsing, table parsing,
 archive preview rendering, table rendering, summary rendering, stats preview rendering, chart preview rendering, table operations, profiles, schema inference, numeric stats, chart rendering, and HTML

@@ -5,6 +5,10 @@ import jdk.jshell.Snippet;
 import jdk.jshell.SnippetEvent;
 import jdk.jshell.SourceCodeAnalysis;
 
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -26,11 +30,11 @@ public final class JavaExecutionSession implements AutoCloseable {
     private final JShell shell;
     private final AtomicBoolean closed = new AtomicBoolean();
 
-    private JavaExecutionSession(String startupScript, String... compilerOptions) {
+    private JavaExecutionSession(String startupScript, InputStream input, OutputStream output, OutputStream error, String... compilerOptions) {
         this.shell = JShell.builder()
-                .in(System.in)
-                .out(System.out)
-                .err(System.err)
+                .in(Objects.requireNonNull(input, "input must not be null"))
+                .out(new PrintStream(output, true, StandardCharsets.UTF_8))
+                .err(new PrintStream(error, true, StandardCharsets.UTF_8))
                 .compilerOptions(compilerOptions)
                 .build();
         try {
@@ -43,17 +47,44 @@ public final class JavaExecutionSession implements AutoCloseable {
 
     /** Creates a session with JavaLand's standard Java imports and compiler defaults. */
     public static JavaExecutionSession create() {
-        return create(DEFAULT_STARTUP_SCRIPT,
+        return create(System.in, System.out, System.err);
+    }
+
+    /**
+     * Creates a standard session whose snippet output is routed to caller-owned streams.
+     * The streams are not closed by the session.
+     */
+    public static JavaExecutionSession create(OutputStream output, OutputStream error) {
+        Objects.requireNonNull(output, "output must not be null");
+        Objects.requireNonNull(error, "error must not be null");
+        return create(System.in, output, error);
+    }
+
+    /**
+     * Creates a standard session with caller-owned input, output and error streams.
+     * The session does not close any of the supplied streams.
+     */
+    public static JavaExecutionSession create(
+            InputStream input, OutputStream output, OutputStream error) {
+        Objects.requireNonNull(input, "input must not be null");
+        Objects.requireNonNull(output, "output must not be null");
+        Objects.requireNonNull(error, "error must not be null");
+        return new JavaExecutionSession(DEFAULT_STARTUP_SCRIPT, input, output, error,
                 "--enable-preview",
                 "--source", Integer.toString(Runtime.version().feature()),
                 "--add-modules=jdk.incubator.vector");
+    }
+
+    /** Creates a standard session with caller-owned input and process-default output streams. */
+    public static JavaExecutionSession create(InputStream input) {
+        return create(input, System.out, System.err);
     }
 
     /** Creates a session with explicit startup source and JShell compiler options. */
     public static JavaExecutionSession create(String startupScript, String... compilerOptions) {
         Objects.requireNonNull(startupScript, "startupScript must not be null");
         Objects.requireNonNull(compilerOptions, "compilerOptions must not be null");
-        return new JavaExecutionSession(startupScript, compilerOptions.clone());
+        return new JavaExecutionSession(startupScript, System.in, System.out, System.err, compilerOptions.clone());
     }
 
     /** Evaluates one or more complete snippets in the persistent session. */

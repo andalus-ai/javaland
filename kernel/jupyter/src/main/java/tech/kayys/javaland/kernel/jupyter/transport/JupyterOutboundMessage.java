@@ -5,7 +5,7 @@ import tech.kayys.javaland.transport.jupyter.zmq.JupyterZmqChannel;
 import java.util.List;
 import java.util.Objects;
 
-/** Outbound message and optional ROUTER identities. */
+/** Outbound message with pre-delimiter envelope frames: ROUTER identities or a PUB/SUB topic. */
 public record JupyterOutboundMessage(JupyterZmqChannel channel, List<byte[]> identities,
                                      JupyterMessage message) {
     public JupyterOutboundMessage {

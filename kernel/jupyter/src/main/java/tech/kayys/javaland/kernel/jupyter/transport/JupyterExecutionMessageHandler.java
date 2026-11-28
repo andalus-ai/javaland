@@ -17,6 +17,7 @@ import java.util.UUID;
 public final class JupyterExecutionMessageHandler implements JupyterMessageHandler, AutoCloseable {
     private static final String PROTOCOL_VERSION = "5.3";
     private static final String IMPLEMENTATION_VERSION = "0.1.0";
+    private static final String INCOMPLETE_INDENT = "    ";
 
     private final JavaExecutionSession execution;
     private int executionCount;
@@ -32,6 +33,12 @@ public final class JupyterExecutionMessageHandler implements JupyterMessageHandl
     @Override
     public List<JupyterOutboundMessage> handle(JupyterInboundMessage inbound) throws Exception {
         Objects.requireNonNull(inbound, "inbound must not be null");
+        if (inbound.channel() == JupyterZmqChannel.CONTROL) {
+            return switch (inbound.message().header().messageType()) {
+                case "interrupt_request" -> interrupt(inbound);
+                default -> List.of();
+            };
+        }
         if (inbound.channel() != JupyterZmqChannel.SHELL) {
             return List.of();
         }
@@ -40,8 +47,24 @@ public final class JupyterExecutionMessageHandler implements JupyterMessageHandl
             case "kernel_info_request" -> List.of(reply(inbound, "kernel_info_reply", kernelInfo()));
             case "execute_request" -> execute(inbound);
             case "complete_request" -> complete(inbound);
+            case "is_complete_request" -> isComplete(inbound);
             default -> List.of();
         };
+    }
+
+    private List<JupyterOutboundMessage> interrupt(JupyterInboundMessage inbound) {
+        execution.interrupt();
+        return List.of(outbound(inbound, JupyterZmqChannel.CONTROL, inbound.identities(),
+                "interrupt_reply", Map.of()));
+    }
+
+    private List<JupyterOutboundMessage> isComplete(JupyterInboundMessage inbound) {
+        String code = stringValue(inbound.message().content().get("code"), "");
+        String status = execution.isComplete(code);
+        Map<String, Object> content = status.equals("complete")
+                ? Map.of("status", "complete")
+                : Map.of("status", "incomplete", "indent", INCOMPLETE_INDENT);
+        return List.of(reply(inbound, "is_complete_reply", content));
     }
 
     private List<JupyterOutboundMessage> complete(JupyterInboundMessage inbound) {
@@ -136,7 +159,7 @@ public final class JupyterExecutionMessageHandler implements JupyterMessageHandl
 
     private static JupyterOutboundMessage reply(
             JupyterInboundMessage inbound, String messageType, Map<String, Object> content) {
-        return outbound(inbound, JupyterZmqChannel.SHELL, List.of(), messageType, content);
+        return outbound(inbound, JupyterZmqChannel.SHELL, inbound.identities(), messageType, content);
     }
 
     private static JupyterOutboundMessage iopub(

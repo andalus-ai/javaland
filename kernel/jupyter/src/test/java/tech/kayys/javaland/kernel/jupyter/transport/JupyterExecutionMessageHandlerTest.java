@@ -24,6 +24,61 @@ class JupyterExecutionMessageHandlerTest {
             assertEquals("javaland", response.message().content().get("implementation"));
             assertEquals("5.3", response.message().content().get("protocol_version"));
             assertEquals("request-1", response.message().parentHeader().get("msg_id"));
+            assertArrayEquals(new byte[]{1}, response.identities().getFirst());
+        }
+    }
+
+    @Test
+    void handlesInterruptRequestsOnControlChannel() throws Exception {
+        try (var handler = new JupyterExecutionMessageHandler(JavaExecutionSession.create())) {
+            var responses = handler.handle(inbound(JupyterZmqChannel.CONTROL,
+                    "interrupt_request", Map.of()));
+            assertEquals(1, responses.size());
+            var response = responses.getFirst();
+            assertEquals(JupyterZmqChannel.CONTROL, response.channel());
+            assertEquals("interrupt_reply", response.message().header().messageType());
+            assertEquals("request-1", response.message().parentHeader().get("msg_id"));
+            assertArrayEquals(new byte[]{1}, response.identities().getFirst());
+            assertTrue(response.message().content().isEmpty());
+        }
+    }
+
+    @Test
+    void ignoresNonInterruptControlMessages() throws Exception {
+        try (var handler = new JupyterExecutionMessageHandler(JavaExecutionSession.create())) {
+            assertTrue(handler.handle(inbound(JupyterZmqChannel.CONTROL,
+                    "kernel_info_request", Map.of())).isEmpty());
+        }
+    }
+
+    @Test
+    void reportsCompleteSource() throws Exception {
+        try (var handler = new JupyterExecutionMessageHandler(JavaExecutionSession.create())) {
+            var responses = handler.handle(inbound("is_complete_request",
+                    Map.of("code", "int answer = 42;")));
+            assertEquals(1, responses.size());
+            var response = responses.getFirst();
+            assertEquals("is_complete_reply", response.message().header().messageType());
+            assertEquals(Map.of("status", "complete"), response.message().content());
+        }
+    }
+
+    @Test
+    void reportsIncompleteSourceWithContinuationIndent() throws Exception {
+        try (var handler = new JupyterExecutionMessageHandler(JavaExecutionSession.create())) {
+            var responses = handler.handle(inbound("is_complete_request",
+                    Map.of("code", "if (true) {")));
+            assertEquals(1, responses.size());
+            assertEquals(Map.of("status", "incomplete", "indent", "    "),
+                    responses.getFirst().message().content());
+        }
+    }
+
+    @Test
+    void treatsMissingCodeAsCompleteEmptyInput() throws Exception {
+        try (var handler = new JupyterExecutionMessageHandler(JavaExecutionSession.create())) {
+            var responses = handler.handle(inbound("is_complete_request", Map.of()));
+            assertEquals(Map.of("status", "complete"), responses.getFirst().message().content());
         }
     }
 
@@ -58,6 +113,70 @@ class JupyterExecutionMessageHandlerTest {
     }
 
     @Test
+    void controlInterruptStopsConcurrentShellExecutionAndReturnsToIdle() throws Exception {
+        String marker = "javaland.jupyter.handler.interrupt.started";
+        System.clearProperty(marker);
+        try (var handler = new JupyterExecutionMessageHandler(JavaExecutionSession.create())) {
+            java.util.concurrent.atomic.AtomicReference<List<JupyterOutboundMessage>> shellResponses =
+                    new java.util.concurrent.atomic.AtomicReference<>();
+            java.util.concurrent.atomic.AtomicReference<Throwable> shellFailure =
+                    new java.util.concurrent.atomic.AtomicReference<>();
+            java.util.concurrent.CountDownLatch shellFinished =
+                    new java.util.concurrent.CountDownLatch(1);
+            Thread shellWorker = new Thread(() -> {
+                try {
+                    shellResponses.set(handler.handle(inbound("execute_request", Map.of(
+                            "code", "System.setProperty(\"" + marker
+                                    + "\", \"true\"); while (true) { Thread.yield(); }",
+                            "silent", false, "store_history", true))));
+                } catch (Throwable failure) {
+                    shellFailure.set(failure);
+                } finally {
+                    shellFinished.countDown();
+                }
+            }, "javaland-jupyter-handler-interrupt-test");
+            shellWorker.setDaemon(true);
+            shellWorker.start();
+
+            long deadline = System.nanoTime()
+                    + java.util.concurrent.TimeUnit.SECONDS.toNanos(5);
+            while (!"true".equals(System.getProperty(marker))
+                    && System.nanoTime() < deadline && shellWorker.isAlive()) {
+                Thread.sleep(10);
+            }
+            assertEquals("true", System.getProperty(marker),
+                    "the Shell request should reach its long-running snippet");
+
+            var controlResponses = handler.handle(inbound(JupyterZmqChannel.CONTROL,
+                    "interrupt_request", Map.of()));
+            assertEquals(1, controlResponses.size());
+            assertEquals("interrupt_reply",
+                    controlResponses.getFirst().message().header().messageType());
+
+            assertTrue(shellFinished.await(5, java.util.concurrent.TimeUnit.SECONDS),
+                    "the Control request should interrupt the active Shell request");
+            assertNull(shellFailure.get());
+            List<String> responseTypes = shellResponses.get().stream()
+                    .map(response -> response.message().header().messageType()).toList();
+            assertEquals("status", responseTypes.getLast());
+            assertEquals("idle", shellResponses.get().getLast().message().content()
+                    .get("execution_state"));
+            assertTrue(responseTypes.contains("execute_reply"));
+
+            var followUp = handler.handle(inbound("execute_request",
+                    Map.of("code", "6 * 7", "silent", false, "store_history", false)));
+            var result = followUp.stream()
+                    .filter(response -> response.message().header().messageType()
+                            .equals("execute_result"))
+                    .findFirst().orElseThrow();
+            assertEquals("42", ((Map<?, ?>) result.message().content().get("data"))
+                    .get("text/plain"));
+        } finally {
+            System.clearProperty(marker);
+        }
+    }
+
+    @Test
     void executesExpressionAndPublishesResultBetweenBusyAndIdle() throws Exception {
         try (var handler = new JupyterExecutionMessageHandler(JavaExecutionSession.create())) {
             var responses = handler.handle(inbound("execute_request",
@@ -66,13 +185,27 @@ class JupyterExecutionMessageHandlerTest {
                     responses.stream().map(item -> item.message().header().messageType()).toList());
             assertEquals("42", ((Map<?, ?>) responses.get(2).message().content().get("data"))
                     .get("text/plain"));
+            assertEquals(JupyterZmqChannel.IOPUB, responses.get(0).channel());
+            assertEquals("status.request-session",
+                    new String(responses.get(0).identities().getFirst(),
+                            java.nio.charset.StandardCharsets.UTF_8));
+            var executeReply = responses.stream()
+                    .filter(item -> item.message().header().messageType().equals("execute_reply"))
+                    .findFirst().orElseThrow();
+            assertEquals(JupyterZmqChannel.SHELL, executeReply.channel());
+            assertArrayEquals(new byte[]{1}, executeReply.identities().getFirst());
         }
     }
 
     private static JupyterInboundMessage inbound(String type, Map<String, Object> content) {
+        return inbound(JupyterZmqChannel.SHELL, type, content);
+    }
+
+    private static JupyterInboundMessage inbound(
+            JupyterZmqChannel channel, String type, Map<String, Object> content) {
         var header = new JupyterMessageHeader(
                 "request-1", "test-user", "request-session", Instant.now().toString(), type, "5.3");
-        return new JupyterInboundMessage(JupyterZmqChannel.SHELL, List.of(new byte[]{1}),
+        return new JupyterInboundMessage(channel, List.of(new byte[]{1}),
                 new JupyterMessage(header, Map.of(), Map.of(), content));
     }
 }
