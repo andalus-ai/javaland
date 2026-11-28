@@ -5,7 +5,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-/** A protocol message plus the ZeroMQ routing identities preceding its delimiter. */
+/** A protocol message plus its pre-delimiter ZeroMQ envelope frames (routing identities or topic). */
 public record JupyterWireMessage(List<byte[]> identities, SerializedJupyterMessage message) {
     public JupyterWireMessage {
         Objects.requireNonNull(identities, "identities must not be null");
