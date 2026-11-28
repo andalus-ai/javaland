@@ -5,6 +5,7 @@ import org.dflib.jjava.jupyter.kernel.ReplacementOptions;
 import org.dflib.jjava.jupyter.kernel.display.DisplayData;
 import org.dflib.jjava.jupyter.kernel.display.mime.MIMEType;
 import tech.kayys.javaland.kernel.jupyter.JavaLandKernel;
+import tech.kayys.javaland.kernel.jupyter.NotebookExecutionResult;
 import tech.kayys.javaland.protocol.jupyter.JupyterMessage;
 import tech.kayys.javaland.protocol.jupyter.JupyterMessageHeader;
 import tech.kayys.javaland.transport.jupyter.zmq.JupyterZmqChannel;
@@ -83,16 +84,38 @@ public final class JavaLandKernelMessageHandler implements JupyterMessageHandler
         }
 
         try {
-            DisplayData result = kernel.eval(code);
-            if (!silent && result != null && !DISPLAY_MIME_TYPES.stream()
-                    .allMatch(mime -> dataFor(result, mime) == null)) {
-                Map<String, Object> data = displayData(result);
-                messages.add(iopub(inbound, "execute_result", Map.of(
-                        "execution_count", count, "data", data, "metadata", Map.of())));
+            NotebookExecutionResult execution = kernel.evalWithOutput(code);
+            if (!silent) {
+                publishStream(messages, inbound, "stdout", execution.stdout());
+                publishStream(messages, inbound, "stderr", execution.stderr());
             }
-            messages.add(reply(inbound, "execute_reply", Map.of(
-                    "status", "ok", "execution_count", count,
-                    "payload", List.of(), "user_expressions", Map.of())));
+
+            if (execution.successful()) {
+                DisplayData result = execution.displayData();
+                if (!silent && result != null && !DISPLAY_MIME_TYPES.stream()
+                        .allMatch(mime -> dataFor(result, mime) == null)) {
+                    Map<String, Object> data = displayData(result);
+                    messages.add(iopub(inbound, "execute_result", Map.of(
+                            "execution_count", count, "data", data, "metadata", Map.of())));
+                }
+                messages.add(reply(inbound, "execute_reply", Map.of(
+                        "status", "ok", "execution_count", count,
+                        "payload", List.of(), "user_expressions", Map.of())));
+            } else {
+                Exception failure = execution.failure();
+                String name = failure.getClass().getSimpleName();
+                String value = failure.getMessage() == null ? "" : failure.getMessage();
+                if (!silent) {
+                    messages.add(iopub(inbound, "error", Map.of(
+                            "ename", name, "evalue", value,
+                            "traceback", List.of(name + ": " + value))));
+                }
+                messages.add(reply(inbound, "execute_reply", Map.of(
+                        "status", "error", "execution_count", count,
+                        "ename", name, "evalue", value,
+                        "traceback", List.of(name + ": " + value),
+                        "payload", List.of(), "user_expressions", Map.of())));
+            }
         } catch (Exception failure) {
             String name = failure.getClass().getSimpleName();
             String value = failure.getMessage() == null ? "" : failure.getMessage();
@@ -109,6 +132,16 @@ public final class JavaLandKernelMessageHandler implements JupyterMessageHandler
         }
         messages.add(iopub(inbound, "status", Map.of("execution_state", "idle")));
         return List.copyOf(messages);
+    }
+
+    private static void publishStream(
+            List<JupyterOutboundMessage> messages,
+            JupyterInboundMessage inbound,
+            String name,
+            String text) {
+        if (text != null && !text.isEmpty()) {
+            messages.add(iopub(inbound, "stream", Map.of("name", name, "text", text)));
+        }
     }
 
     private List<JupyterOutboundMessage> complete(JupyterInboundMessage inbound) throws Exception {
