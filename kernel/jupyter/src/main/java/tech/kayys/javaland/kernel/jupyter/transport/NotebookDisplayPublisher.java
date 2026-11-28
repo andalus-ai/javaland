@@ -39,6 +39,22 @@ public final class NotebookDisplayPublisher {
         return new PublishedDisplay(displayId, iopub(parent, "display_data", content));
     }
 
+    /** Publishes a display using an identifier allocated by the execution bridge. */
+    public PublishedDisplay display(
+            JupyterInboundMessage parent,
+            String displayId,
+            Map<String, Object> data,
+            Map<String, Object> metadata) {
+        Objects.requireNonNull(parent, "parent must not be null");
+        if (displayId == null || displayId.isBlank()) {
+            throw new IllegalArgumentException("displayId must not be blank");
+        }
+        activeDisplayIds.add(displayId);
+        Map<String, Object> transientMetadata = Map.of("display_id", displayId);
+        return new PublishedDisplay(displayId,
+                iopub(parent, "display_data", displayContent(data, metadata, transientMetadata)));
+    }
+
     /** Updates a display previously created by this publisher. */
     public JupyterOutboundMessage updateDisplay(
             JupyterInboundMessage parent,
