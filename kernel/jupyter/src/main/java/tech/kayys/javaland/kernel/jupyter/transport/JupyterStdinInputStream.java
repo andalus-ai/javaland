@@ -33,17 +33,19 @@ public final class JupyterStdinInputStream extends InputStream {
 
     /** Supplies one frontend input reply. A newline is appended for normal line-oriented Java APIs. */
     public void submit(String value) {
-        Objects.requireNonNull(value, "value must not be null");
-        if (closed.get()) {
-            throw new IllegalStateException("Notebook stdin is closed");
-        }
-        if (!awaitingReply.compareAndSet(true, false)) {
+        if (!submitIfPending(value)) {
             throw new IllegalStateException("No notebook input request is pending");
+        }
+    }
+
+    /** Attempts to deliver a reply, returning false when no read is awaiting input. */
+    public boolean submitIfPending(String value) {
+        Objects.requireNonNull(value, "value must not be null");
+        if (closed.get() || !awaitingReply.compareAndSet(true, false)) {
+            return false;
         }
         byte[] bytes = (value + System.lineSeparator()).getBytes(StandardCharsets.UTF_8);
-        if (!replies.offer(bytes)) {
-            throw new IllegalStateException("No notebook input request is pending");
-        }
+        return replies.offer(bytes);
     }
 
     /** Cancels the currently pending frontend prompt without permanently closing stdin. */
