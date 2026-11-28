@@ -22,6 +22,7 @@ public final class JupyterStdinInputStream extends InputStream {
     private final InputRequester requester;
     private final BlockingQueue<byte[]> replies = new ArrayBlockingQueue<>(1);
     private final AtomicBoolean closed = new AtomicBoolean();
+    private final AtomicBoolean awaitingReply = new AtomicBoolean();
     private byte[] current = new byte[0];
     private int offset;
 
@@ -34,6 +35,9 @@ public final class JupyterStdinInputStream extends InputStream {
         Objects.requireNonNull(value, "value must not be null");
         if (closed.get()) {
             throw new IllegalStateException("Notebook stdin is closed");
+        }
+        if (!awaitingReply.compareAndSet(true, false)) {
+            throw new IllegalStateException("No notebook input request is pending");
         }
         byte[] bytes = (value + System.lineSeparator()).getBytes(StandardCharsets.UTF_8);
         if (!replies.offer(bytes)) {
@@ -69,15 +73,20 @@ public final class JupyterStdinInputStream extends InputStream {
             if (closed.get()) {
                 return false;
             }
-            requester.request("", false);
+            awaitingReply.set(true);
             try {
+                requester.request("", false);
                 current = replies.take();
                 offset = 0;
             } catch (InterruptedException interrupted) {
+                awaitingReply.set(false);
                 Thread.currentThread().interrupt();
                 InterruptedIOException failure = new InterruptedIOException(
                         "Interrupted while waiting for notebook input");
                 failure.initCause(interrupted);
+                throw failure;
+            } catch (RuntimeException failure) {
+                awaitingReply.set(false);
                 throw failure;
             }
         }
