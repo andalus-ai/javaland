@@ -1,5 +1,6 @@
 package tech.kayys.javaland.kernel.jupyter;
 
+import java.io.InputStream;
 import static tech.kayys.javaland.kernel.jupyter.NotebookCharts.buildGroupBySvg;
 import static tech.kayys.javaland.kernel.jupyter.NotebookCharts.buildHistogramBins;
 import static tech.kayys.javaland.kernel.jupyter.NotebookCharts.buildMissingSvg;
@@ -179,13 +180,20 @@ public class JavaLandKernel extends BaseKernel {
 
     private JavaExecutionSession session;
     private final NotebookOutputCapture outputCapture;
+    private final InputStream inputStream;
     private CompletionProvider completer;
     private final Set<String> dynamicClasspathEntries;
     private final NotebookMagicDispatcher magicDispatcher;
     private Path currentDirectory;
 
     public JavaLandKernel() {
+        this(System.in);
+    }
+
+    /** Creates a kernel whose JShell session reads from a caller-owned input stream. */
+    public JavaLandKernel(InputStream inputStream) {
         this.dynamicClasspathEntries = new LinkedHashSet<>();
+        this.inputStream = java.util.Objects.requireNonNull(inputStream, "inputStream must not be null");
         this.outputCapture = new NotebookOutputCapture(System.out, System.err);
         this.magicDispatcher = createMagicDispatcher();
         this.currentDirectory = Path.of("").toAbsolutePath().normalize();
@@ -330,7 +338,7 @@ public class JavaLandKernel extends BaseKernel {
     }
 
     private void reinitializeSession() {
-        this.session = JavaExecutionSession.create(outputCapture.stdout(), outputCapture.stderr());
+        this.session = JavaExecutionSession.create(inputStream, outputCapture.stdout(), outputCapture.stderr());
         this.completer = new CompletionProvider(session.shell());
     }
 
