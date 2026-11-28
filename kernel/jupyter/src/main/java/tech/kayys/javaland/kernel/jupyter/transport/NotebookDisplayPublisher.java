@@ -35,8 +35,26 @@ public final class NotebookDisplayPublisher {
         String displayId = UUID.randomUUID().toString();
         activeDisplayIds.add(displayId);
         Map<String, Object> transientMetadata = Map.of("display_id", displayId);
-        Map<String, Object> content = displayContent(data, metadata, transientMetadata);
-        return new PublishedDisplay(displayId, iopub(parent, "display_data", content));
+        DisplayPayload payload = displayContent(data, metadata, transientMetadata);
+        return new PublishedDisplay(displayId,
+                iopub(parent, "display_data", payload.content(), payload.buffers()));
+    }
+
+    /** Publishes a display using an identifier allocated by the execution bridge. */
+    public PublishedDisplay display(
+            JupyterInboundMessage parent,
+            String displayId,
+            Map<String, Object> data,
+            Map<String, Object> metadata) {
+        Objects.requireNonNull(parent, "parent must not be null");
+        if (displayId == null || displayId.isBlank()) {
+            throw new IllegalArgumentException("displayId must not be blank");
+        }
+        activeDisplayIds.add(displayId);
+        Map<String, Object> transientMetadata = Map.of("display_id", displayId);
+        DisplayPayload payload = displayContent(data, metadata, transientMetadata);
+        return new PublishedDisplay(displayId,
+                iopub(parent, "display_data", payload.content(), payload.buffers()));
     }
 
     /** Updates a display previously created by this publisher. */
@@ -49,8 +67,8 @@ public final class NotebookDisplayPublisher {
         if (displayId == null || !activeDisplayIds.contains(displayId)) {
             throw new IllegalArgumentException("Unknown or cleared display_id: " + displayId);
         }
-        return iopub(parent, "update_display_data",
-                displayContent(data, metadata, Map.of("display_id", displayId)));
+        DisplayPayload payload = displayContent(data, metadata, Map.of("display_id", displayId));
+        return iopub(parent, "update_display_data", payload.content(), payload.buffers());
     }
 
     /** Emits clear_output and invalidates all display identifiers owned by this publisher. */
@@ -60,19 +78,31 @@ public final class NotebookDisplayPublisher {
         return iopub(parent, "clear_output", Map.of("wait", wait));
     }
 
-    private static Map<String, Object> displayContent(
+    private static DisplayPayload displayContent(
             Map<String, Object> data,
             Map<String, Object> metadata,
             Map<String, Object> transientMetadata) {
+        JupyterMimeBundle bundle = JupyterMimeBundle.from(data);
         Map<String, Object> content = new LinkedHashMap<>();
-        content.put("data", Map.copyOf(Objects.requireNonNull(data, "data must not be null")));
+        content.put("data", bundle.data());
         content.put("metadata", Map.copyOf(Objects.requireNonNull(metadata, "metadata must not be null")));
         content.put("transient", transientMetadata);
-        return Map.copyOf(content);
+        if (!bundle.bufferPaths().isEmpty()) {
+            content.put("buffer_paths", bundle.bufferPaths());
+        }
+        return new DisplayPayload(Map.copyOf(content), bundle.buffers());
     }
+
+    private record DisplayPayload(Map<String, Object> content, List<byte[]> buffers) { }
 
     private static JupyterOutboundMessage iopub(
             JupyterInboundMessage parent, String type, Map<String, Object> content) {
+        return iopub(parent, type, content, List.of());
+    }
+
+    private static JupyterOutboundMessage iopub(
+            JupyterInboundMessage parent, String type, Map<String, Object> content,
+            List<byte[]> buffers) {
         JupyterMessageHeader request = parent.message().header();
         JupyterMessageHeader header = new JupyterMessageHeader(
                 UUID.randomUUID().toString(), request.username(), request.session(),
@@ -88,7 +118,7 @@ public final class NotebookDisplayPublisher {
         return new JupyterOutboundMessage(
                 JupyterZmqChannel.IOPUB,
                 List.of(topic.getBytes(StandardCharsets.UTF_8)),
-                new JupyterMessage(header, parentHeader, Map.of(), content));
+                new JupyterMessage(header, parentHeader, Map.of(), content, buffers));
     }
 
     public record PublishedDisplay(String displayId, JupyterOutboundMessage message) {

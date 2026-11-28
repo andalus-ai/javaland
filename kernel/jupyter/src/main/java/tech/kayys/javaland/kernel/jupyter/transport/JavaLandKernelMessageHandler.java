@@ -6,6 +6,7 @@ import org.dflib.jjava.jupyter.kernel.display.DisplayData;
 import org.dflib.jjava.jupyter.kernel.display.mime.MIMEType;
 import tech.kayys.javaland.kernel.jupyter.JavaLandKernel;
 import tech.kayys.javaland.kernel.jupyter.NotebookExecutionResult;
+import tech.kayys.javaland.kernel.jupyter.NotebookDisplayEvent;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicReference;
 import tech.kayys.javaland.protocol.jupyter.JupyterMessage;
@@ -168,13 +169,23 @@ public final class JavaLandKernelMessageHandler implements JupyterAsyncMessageHa
                 publishStream(messages, inbound, "stderr", execution.stderr());
             }
 
+            if (!silent) {
+                publishDisplayEvents(messages, inbound, execution.displayEvents());
+            }
+
             if (execution.successful()) {
                 DisplayData result = execution.displayData();
                 if (!silent && result != null && !DISPLAY_MIME_TYPES.stream()
                         .allMatch(mime -> dataFor(result, mime) == null)) {
-                    Map<String, Object> data = displayData(result);
-                    messages.add(iopub(inbound, "execute_result", Map.of(
-                            "execution_count", count, "data", data, "metadata", Map.of())));
+                    JupyterMimeBundle bundle = JupyterMimeBundle.from(displayData(result));
+                    Map<String, Object> content = new LinkedHashMap<>();
+                    content.put("execution_count", count);
+                    content.put("data", bundle.data());
+                    content.put("metadata", Map.of());
+                    if (!bundle.bufferPaths().isEmpty()) {
+                        content.put("buffer_paths", bundle.bufferPaths());
+                    }
+                    messages.add(iopub(inbound, "execute_result", content, bundle.buffers()));
                 }
                 messages.add(reply(inbound, "execute_reply", Map.of(
                         "status", "ok", "execution_count", count,
@@ -210,6 +221,21 @@ public final class JavaLandKernelMessageHandler implements JupyterAsyncMessageHa
         }
         messages.add(iopub(inbound, "status", Map.of("execution_state", "idle")));
         return List.copyOf(messages);
+    }
+
+    private void publishDisplayEvents(
+            List<JupyterOutboundMessage> messages,
+            JupyterInboundMessage inbound,
+            List<NotebookDisplayEvent> events) {
+        for (NotebookDisplayEvent event : events) {
+            switch (event.type()) {
+                case DISPLAY -> messages.add(displayPublisher.display(
+                        inbound, event.displayId(), event.data(), event.metadata()).message());
+                case UPDATE -> messages.add(displayPublisher.updateDisplay(
+                        inbound, event.displayId(), event.data(), event.metadata()));
+                case CLEAR -> messages.add(displayPublisher.clearOutput(inbound, event.wait()));
+            }
+        }
     }
 
     private static void publishStream(
@@ -290,14 +316,26 @@ public final class JavaLandKernelMessageHandler implements JupyterAsyncMessageHa
 
     private static JupyterOutboundMessage iopub(
             JupyterInboundMessage inbound, String type, Map<String, Object> content) {
+        return iopub(inbound, type, content, List.of());
+    }
+
+    private static JupyterOutboundMessage iopub(
+            JupyterInboundMessage inbound, String type, Map<String, Object> content,
+            List<byte[]> buffers) {
         String topic = type + "." + inbound.message().header().session();
         return outbound(inbound, JupyterZmqChannel.IOPUB,
-                List.of(topic.getBytes(StandardCharsets.UTF_8)), type, content);
+                List.of(topic.getBytes(StandardCharsets.UTF_8)), type, content, buffers);
     }
 
     private static JupyterOutboundMessage outbound(
             JupyterInboundMessage inbound, JupyterZmqChannel channel, List<byte[]> identities,
             String type, Map<String, Object> content) {
+        return outbound(inbound, channel, identities, type, content, List.of());
+    }
+
+    private static JupyterOutboundMessage outbound(
+            JupyterInboundMessage inbound, JupyterZmqChannel channel, List<byte[]> identities,
+            String type, Map<String, Object> content, List<byte[]> buffers) {
         JupyterMessageHeader request = inbound.message().header();
         JupyterMessageHeader header = new JupyterMessageHeader(
                 UUID.randomUUID().toString(), request.username(), request.session(),
@@ -307,7 +345,7 @@ public final class JavaLandKernelMessageHandler implements JupyterAsyncMessageHa
                 "session", request.session(), "date", request.date(),
                 "msg_type", request.messageType(), "version", request.version());
         return new JupyterOutboundMessage(channel, identities,
-                new JupyterMessage(header, parent, Map.of(), content));
+                new JupyterMessage(header, parent, Map.of(), content, buffers));
     }
 
     private static String stringValue(Object value, String fallback) {

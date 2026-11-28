@@ -181,6 +181,7 @@ public class JavaLandKernel extends BaseKernel {
     private JavaExecutionSession session;
     private final NotebookOutputCapture outputCapture;
     private final InputStream inputStream;
+    private final NotebookDisplayBridge displayBridge = NotebookDisplayBridge.create();
     private CompletionProvider completer;
     private final Set<String> dynamicClasspathEntries;
     private final NotebookMagicDispatcher magicDispatcher;
@@ -230,10 +231,10 @@ public class JavaLandKernel extends BaseKernel {
                     }
                 }
                 return new NotebookExecutionResult(display,
-                        capture.stdoutText(), capture.stderrText(), null);
+                        capture.stdoutText(), capture.stderrText(), null, displayBridge.drainEvents());
             } catch (Exception failure) {
                 return new NotebookExecutionResult(null,
-                        capture.stdoutText(), capture.stderrText(), failure);
+                        capture.stdoutText(), capture.stderrText(), failure, displayBridge.drainEvents());
             }
         }
     }
@@ -250,7 +251,10 @@ public class JavaLandKernel extends BaseKernel {
     public void interrupt() { session.interrupt(); }
 
     @Override
-    public void onShutdown(boolean restart) { session.close(); }
+    public void onShutdown(boolean restart) {
+        session.close();
+        displayBridge.close();
+    }
 
     @Override
     public LanguageInfo getLanguageInfo() { return LANGUAGE_INFO; }
@@ -339,6 +343,8 @@ public class JavaLandKernel extends BaseKernel {
 
     private void reinitializeSession() {
         this.session = JavaExecutionSession.create(inputStream, outputCapture.stdout(), outputCapture.stderr());
+        String bridgeId = displayBridge.sessionId();
+        session.shell().eval("var notebookDisplay = tech.kayys.javaland.kernel.jupyter.NotebookDisplayBridge.attach(\"" + bridgeId + "\");");
         this.completer = new CompletionProvider(session.shell());
     }
 
