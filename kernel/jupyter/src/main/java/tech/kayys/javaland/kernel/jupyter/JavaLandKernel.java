@@ -178,6 +178,7 @@ public class JavaLandKernel extends BaseKernel {
             .build();
 
     private JavaExecutionSession session;
+    private final NotebookOutputCapture outputCapture;
     private CompletionProvider completer;
     private final Set<String> dynamicClasspathEntries;
     private final NotebookMagicDispatcher magicDispatcher;
@@ -185,6 +186,7 @@ public class JavaLandKernel extends BaseKernel {
 
     public JavaLandKernel() {
         this.dynamicClasspathEntries = new LinkedHashSet<>();
+        this.outputCapture = new NotebookOutputCapture(System.out, System.err);
         this.magicDispatcher = createMagicDispatcher();
         this.currentDirectory = Path.of("").toAbsolutePath().normalize();
         reinitializeSession();
@@ -192,14 +194,40 @@ public class JavaLandKernel extends BaseKernel {
 
     @Override
     public DisplayData eval(String code) throws Exception {
-        DisplayData magic = evalMagic(code);
-        if (magic != null) {
-            return magic;
+        NotebookExecutionResult result = evalWithOutput(code);
+        if (result.failure() != null) {
+            throw result.failure();
         }
-        Object result = session.eval(code);
-        if (result == null) return DisplayData.EMPTY;
-        DisplayData rich = TensorDisplay.render(result, getRenderer());
-        return rich != null ? rich : new DisplayData(result.toString());
+        return result.displayData();
+    }
+
+    /**
+     * Evaluates one cell and returns its display value plus output written by the
+     * JShell snippet on the evaluating thread. No process-wide streams are replaced.
+     */
+    public NotebookExecutionResult evalWithOutput(String code) {
+        try (NotebookOutputCapture.Scope capture = outputCapture.begin()) {
+            try {
+                DisplayData magic = evalMagic(code);
+                DisplayData display;
+                if (magic != null) {
+                    display = magic;
+                } else {
+                    Object value = session.eval(code);
+                    if (value == null) {
+                        display = DisplayData.EMPTY;
+                    } else {
+                        DisplayData rich = TensorDisplay.render(value, getRenderer());
+                        display = rich != null ? rich : new DisplayData(value.toString());
+                    }
+                }
+                return new NotebookExecutionResult(display,
+                        capture.stdoutText(), capture.stderrText(), null);
+            } catch (Exception failure) {
+                return new NotebookExecutionResult(null,
+                        capture.stdoutText(), capture.stderrText(), failure);
+            }
+        }
     }
 
     @Override
@@ -302,7 +330,7 @@ public class JavaLandKernel extends BaseKernel {
     }
 
     private void reinitializeSession() {
-        this.session = JavaExecutionSession.create();
+        this.session = JavaExecutionSession.create(outputCapture.stdout(), outputCapture.stderr());
         this.completer = new CompletionProvider(session.shell());
     }
 
