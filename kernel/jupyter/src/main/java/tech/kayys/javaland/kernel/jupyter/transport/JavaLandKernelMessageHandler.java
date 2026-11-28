@@ -6,6 +6,7 @@ import org.dflib.jjava.jupyter.kernel.display.DisplayData;
 import org.dflib.jjava.jupyter.kernel.display.mime.MIMEType;
 import tech.kayys.javaland.kernel.jupyter.JavaLandKernel;
 import tech.kayys.javaland.kernel.jupyter.NotebookExecutionResult;
+import tech.kayys.javaland.kernel.jupyter.NotebookDisplayEvent;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicReference;
 import tech.kayys.javaland.protocol.jupyter.JupyterMessage;
@@ -168,6 +169,10 @@ public final class JavaLandKernelMessageHandler implements JupyterAsyncMessageHa
                 publishStream(messages, inbound, "stderr", execution.stderr());
             }
 
+            if (!silent) {
+                publishDisplayEvents(messages, inbound, execution.displayEvents());
+            }
+
             if (execution.successful()) {
                 DisplayData result = execution.displayData();
                 if (!silent && result != null && !DISPLAY_MIME_TYPES.stream()
@@ -210,6 +215,21 @@ public final class JavaLandKernelMessageHandler implements JupyterAsyncMessageHa
         }
         messages.add(iopub(inbound, "status", Map.of("execution_state", "idle")));
         return List.copyOf(messages);
+    }
+
+    private void publishDisplayEvents(
+            List<JupyterOutboundMessage> messages,
+            JupyterInboundMessage inbound,
+            List<NotebookDisplayEvent> events) {
+        for (NotebookDisplayEvent event : events) {
+            switch (event.type()) {
+                case DISPLAY -> messages.add(displayPublisher.display(
+                        inbound, event.displayId(), event.data(), event.metadata()).message());
+                case UPDATE -> messages.add(displayPublisher.updateDisplay(
+                        inbound, event.displayId(), event.data(), event.metadata()));
+                case CLEAR -> messages.add(displayPublisher.clearOutput(inbound, event.wait()));
+            }
+        }
     }
 
     private static void publishStream(
