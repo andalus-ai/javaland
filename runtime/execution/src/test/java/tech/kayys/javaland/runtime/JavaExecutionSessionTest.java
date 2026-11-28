@@ -127,6 +127,17 @@ class JavaExecutionSessionTest {
     }
 
     @Test
+    void routesSnippetOutputToCallerOwnedStreams() throws Exception {
+        java.io.ByteArrayOutputStream stdout = new java.io.ByteArrayOutputStream();
+        java.io.ByteArrayOutputStream stderr = new java.io.ByteArrayOutputStream();
+        try (JavaExecutionSession session = JavaExecutionSession.create(stdout, stderr)) {
+            session.eval("System.out.println(\"captured stdout\"); System.err.println(\"captured stderr\");");
+        }
+        assertTrue(stdout.toString(java.nio.charset.StandardCharsets.UTF_8).contains("captured stdout"));
+        assertTrue(stderr.toString(java.nio.charset.StandardCharsets.UTF_8).contains("captured stderr"));
+    }
+
+    @Test
     void closeIsIdempotentAndRejectsFurtherUse() {
         JavaExecutionSession session = JavaExecutionSession.create();
         session.close();
