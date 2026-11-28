@@ -2,6 +2,7 @@ package tech.kayys.javaland.kernel.jupyter;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicReference;
 import java.io.OutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
@@ -14,7 +15,8 @@ import java.util.Objects;
  * Output written outside an active cell scope is forwarded to the original streams.</p>
  */
 final class NotebookOutputCapture {
-    private final ThreadLocal<Buffers> active = new ThreadLocal<>();
+    private static final int MAX_CAPTURE_BYTES = 1024 * 1024;
+    private final AtomicReference<Buffers> active = new AtomicReference<>();
     private final PrintStream stdout;
     private final PrintStream stderr;
 
@@ -34,11 +36,10 @@ final class NotebookOutputCapture {
     }
 
     Scope begin() {
-        if (active.get() != null) {
-            throw new IllegalStateException("Notebook output capture is already active on this thread");
-        }
         Buffers buffers = new Buffers();
-        active.set(buffers);
+        if (!active.compareAndSet(null, buffers)) {
+            throw new IllegalStateException("Notebook output capture is already active");
+        }
         return new Scope(buffers);
     }
 
@@ -112,7 +113,39 @@ final class NotebookOutputCapture {
     }
 
     private static final class Buffers {
-        private final ByteArrayOutputStream stdout = new ByteArrayOutputStream();
-        private final ByteArrayOutputStream stderr = new ByteArrayOutputStream();
+        private final BoundedBuffer stdout = new BoundedBuffer();
+        private final BoundedBuffer stderr = new BoundedBuffer();
+    }
+
+    private static final class BoundedBuffer extends ByteArrayOutputStream {
+        private boolean truncated;
+
+        @Override
+        public synchronized void write(int value) {
+            if (count < MAX_CAPTURE_BYTES) {
+                super.write(value);
+            } else {
+                truncated = true;
+            }
+        }
+
+        @Override
+        public synchronized void write(byte[] bytes, int offset, int length) {
+            int accepted = Math.min(length, MAX_CAPTURE_BYTES - count);
+            if (accepted > 0) {
+                super.write(bytes, offset, accepted);
+            }
+            if (accepted < length) {
+                truncated = true;
+            }
+        }
+
+        @Override
+        public synchronized String toString(java.nio.charset.Charset charset) {
+            String text = super.toString(charset);
+            return truncated ? text + System.lineSeparator()
+                    + "[JavaLand: cell output truncated after " + MAX_CAPTURE_BYTES + " bytes]"
+                    : text;
+        }
     }
 }
